@@ -19,6 +19,11 @@ export const HOME_COORD_Y = 200;
 /** SVG chart units → Three.js horizontal units. */
 export const SVG_SCENE_SCALE = 0.14;
 
+const GRAVITY_FT_S2 = 32.174;
+const MPH_TO_FPS = 1.467;
+/** ~130 ft apex at typical horizontal scale — keeps arcs inside the stadium. */
+const MAX_SCENE_APEX = 3.5;
+
 export interface BallparkSceneMapper {
   home: { x: number; y: number };
   svgToScene(sx: number, sy: number, height?: number): Vec3;
@@ -30,7 +35,8 @@ export function createBallparkSceneMapper(transform: BallparkTransform): Ballpar
 
   const svgToScene = (sx: number, sy: number, height = 0): Vec3 => {
     const s = SVG_SCENE_SCALE;
-    return [(sx - home.x) * s, height, (home.y - sy) * s];
+    // Negate X so the catcher's view (+Z) matches the spray chart: SVG right (RF) → screen right.
+    return [(home.x - sx) * s, height, (home.y - sy) * s];
   };
 
   const hitCoordToScene = (coordX: number, coordY: number, height = 0): Vec3 => {
@@ -67,7 +73,7 @@ function shapeToGroundGeometry(shape: THREE.Shape, mapper: BallparkSceneMapper, 
   for (let i = 0; i < position.count; i += 1) {
     const px = position.getX(i);
     const py = position.getY(i);
-    position.setXYZ(i, (px - home.x) * s, y, (home.y - py) * s);
+    position.setXYZ(i, (home.x - px) * s, y, (home.y - py) * s);
   }
 
   position.needsUpdate = true;
@@ -203,6 +209,50 @@ function isGroundBall(hit: HitData): boolean {
   return traj.includes("ground") || traj.includes("bunt") || hit.launchAngle < 5;
 }
 
+/** Apex height in feet from launch data (capped for high-angle outliers). */
+function estimateApexFeet(hit: HitData): number {
+  const angleRad = (Math.max(hit.launchAngle, 0) * Math.PI) / 180;
+  const distance = Math.max(hit.totalDistance, 1);
+  const sinA = Math.sin(angleRad);
+  const geometric = (distance / 2) * Math.tan(angleRad);
+
+  let apex = geometric;
+
+  if (hit.launchSpeed > 0) {
+    const v0 = hit.launchSpeed * MPH_TO_FPS;
+    const physics = (v0 * sinA) ** 2 / (2 * GRAVITY_FT_S2);
+    apex = Math.min(geometric, physics);
+  }
+
+  // tan(angle) explodes for pop-ups; loft scales with distance, not chart span
+  if (hit.launchAngle > 45) {
+    apex = Math.min(apex, distance * sinA * 0.65);
+  }
+
+  return apex;
+}
+
+/**
+ * Convert a feet-based apex to scene Y using the hit's horizontal scale
+ * (spray-chart span vs Statcast totalDistance).
+ */
+export function estimateApexSceneHeight(hit: HitData, horizDist: number): number {
+  if (horizDist < 0.001) return 0.15;
+
+  const distance = Math.max(hit.totalDistance, 1);
+  const apexFeet = estimateApexFeet(hit);
+  const heightScale = horizDist / distance;
+
+  let apex = apexFeet * heightScale;
+  apex = Math.min(apex, horizDist * 0.7, MAX_SCENE_APEX);
+
+  if (hit.launchAngle >= 5) {
+    apex = Math.max(apex, 0.08);
+  }
+
+  return apex;
+}
+
 /**
  * Build the arc entirely in scene space (home → landing on the spray chart).
  * MLB hc_x/hc_y are not 1:1 with feet, so we must not add foot distances to raw coords.
@@ -239,8 +289,7 @@ export function computeSceneTrajectoryPoints(
     return points;
   }
 
-  const angleRad = (Math.max(hit.launchAngle, 1) * Math.PI) / 180;
-  const peakHeight = (horizDist * Math.tan(angleRad)) / 2;
+  const peakHeight = estimateApexSceneHeight(hit, horizDist);
   const points: Vec3[] = [];
 
   for (let i = 0; i <= segments; i += 1) {

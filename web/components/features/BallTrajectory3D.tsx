@@ -8,6 +8,7 @@ import {
   buildChartBackgroundGeometry,
   buildParkFieldGeometry,
   computeSceneTrajectoryPoints,
+  estimateApexSceneHeight,
   getParkSceneMapper,
   trajectorySceneBounds,
   type FieldLineData,
@@ -113,10 +114,7 @@ export function BallTrajectory3D({ hit, venueId, className }: BallTrajectory3DPr
     const mapper = getParkSceneMapper(venueId);
     const landing = mapper.hitCoordToScene(hit.coordX, hit.coordY, 0);
     const horiz = Math.hypot(landing[0], landing[2]);
-    const peak =
-      hit.launchAngle >= 5
-        ? (horiz * Math.tan((hit.launchAngle * Math.PI) / 180)) / 2
-        : 0.15;
+    const peak = hit.launchAngle >= 5 ? estimateApexSceneHeight(hit, horiz) : 0.15;
     const target: Vec3 = [landing[0] * 0.45, peak * 0.45, landing[2] * 0.45];
     const pullBack = Math.max(horiz * 1.15, 4.5);
     return [target[0] * 0.15, pullBack * 0.5, target[2] * 0.15 - pullBack];
