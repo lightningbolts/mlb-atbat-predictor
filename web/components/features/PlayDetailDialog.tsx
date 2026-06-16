@@ -46,12 +46,12 @@ function fieldZoneLabel(zone: string): string {
 
 function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | null }) {
   return (
-    <div className="border-t border-border pt-3">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">
+    <div className="border-t border-border pt-4">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
         Ball in play
       </p>
-      <div className="flex gap-4">
-        <SprayChart hit={hit} venueId={venueId} className="shrink-0" />
+      <div className="flex flex-col gap-4 md:flex-row md:items-start">
+        <SprayChart hit={hit} venueId={venueId} size="large" className="mx-auto w-full shrink-0" />
         <div className="min-w-0 flex-1 space-y-3">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
             <Stat label="Exit velo" value={`${fmtNum(hit.launchSpeed)} mph`} />
@@ -112,21 +112,18 @@ function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | nul
 }
 
 export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogProps) {
-  const hit = play?.hit;
+  if (!play) return null;
+
+  const hit = play.hit;
 
   return (
     <Dialog
-      open={play !== null}
+      open
       onClose={onClose}
-      title={
-        play
-          ? `${play.batterName} — ${play.event} (${play.batterHits}-${play.batterAtBats})`
-          : "Play detail"
-      }
-      className="w-[min(100%,680px)]"
+      title={`${play.batterName} — ${play.event} (${play.batterHits}-${play.batterAtBats})`}
+      className="w-[min(100%,760px)]"
     >
-      {play && (
-        <div className="space-y-3">
+      <div className="space-y-4">
           <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
             <span>
               {play.inning} {play.halfInning}
@@ -138,15 +135,21 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
 
           <p className="text-[14px] leading-relaxed text-secondary">{play.description}</p>
 
-          {play.pitches.length > 0 && <PitchSequence pitches={play.pitches} />}
+          {play.pitches.length > 0 && (
+            <PitchSequence
+              pitches={play.pitches}
+              layout="split"
+              size="default"
+              contained={false}
+            />
+          )}
 
           {hit && <ContactMetrics hit={hit} venueId={venueId} />}
 
-          {!hit && play.pitches.length === 0 && (
-            <p className="text-sm text-subtle">No pitch data.</p>
-          )}
-        </div>
-      )}
+        {!hit && play.pitches.length === 0 && (
+          <p className="text-sm text-subtle">No pitch data.</p>
+        )}
+      </div>
     </Dialog>
   );
 }

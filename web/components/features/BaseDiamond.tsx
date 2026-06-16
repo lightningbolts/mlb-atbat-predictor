@@ -26,7 +26,7 @@ function Base({
       className={cn(
         "rotate-45 border",
         dim,
-        occupied ? "border-amber-400 bg-amber-400" : "border-neutral-600 bg-neutral-800/80",
+        occupied ? "border-amber-400 bg-amber-400" : "border-faint bg-overlay",
         className,
       )}
     />
@@ -49,7 +49,7 @@ export function BaseDiamond({
         <path
           d="M50 88 L12 50 L50 12 L88 50 Z"
           fill="none"
-          stroke={size === "default" ? "#404040" : "#525252"}
+          stroke="var(--zone-chart-grid)"
           strokeWidth={size === "tiny" ? "1.5" : size === "compact" ? "1.2" : "0.75"}
         />
       </svg>

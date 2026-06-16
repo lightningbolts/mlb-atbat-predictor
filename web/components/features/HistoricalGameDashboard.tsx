@@ -37,7 +37,7 @@ function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn("flex min-h-[180px] flex-col bg-panel p-3 lg:min-h-0", className)}>
+    <section className={cn("flex min-h-[220px] flex-col bg-panel p-3 lg:min-h-0", className)}>
       <h3 className="mb-2 shrink-0 text-xs font-medium text-muted">{title}</h3>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </section>
@@ -209,7 +209,7 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
-                <Panel title="Selected at-bat" className="min-h-0 flex-[3]">
+                <Panel title="Selected at-bat" className="min-h-[380px] flex-[3]">
                   {displayState && (
                     <>
                       <BatterVsPitcherRecord
@@ -233,8 +233,9 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
                     <PitchSequence
                       pitches={displayState?.atBatPitches ?? []}
                       size="large"
-                      layout="stacked"
-                      className="h-full"
+                      layout="split"
+                      contained
+                      className="min-h-0 flex-1"
                     />
                   )}
                 </Panel>

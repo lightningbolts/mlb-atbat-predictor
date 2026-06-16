@@ -4,15 +4,22 @@ import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import type { PlayPitch } from "@/types/mlb-live";
-import { pitchResultColor, toSvgPercent, zoneRectPercent } from "@/lib/mlb/strikeZoneMath";
+import {
+  homePlatePath,
+  pitchResultColor,
+  toSvgPercent,
+  zoneRectPercent,
+} from "@/lib/mlb/strikeZoneMath";
 
 interface PitchSequenceProps {
   pitches: PlayPitch[];
   className?: string;
   compact?: boolean;
   size?: "compact" | "default" | "large";
-  layout?: "horizontal" | "stacked";
+  layout?: "horizontal" | "stacked" | "split";
   scrollToLatest?: boolean;
+  /** When true, pitch list scrolls inside its column (dashboard). When false, expands (dialog). */
+  contained?: boolean;
 }
 
 function reviewBadge(review: NonNullable<PlayPitch["review"]>): string {
@@ -22,33 +29,30 @@ function reviewBadge(review: NonNullable<PlayPitch["review"]>): string {
 const SIZE_STYLES = {
   compact: {
     chart: "w-[120px]",
-    chartStacked: "h-32",
+    chartMinH: "min-h-[180px]",
     dotR: 2.2,
     dotFont: 2.6,
-    table: "text-[12px]",
-    head: "text-[10px]",
-    rowPy: "py-1",
-    marker: "h-1.5 w-1.5",
+    feed: "text-[12px]",
+    badge: "h-6 w-6 text-[10px]",
+    rowPy: "py-2",
   },
   default: {
-    chart: "w-[140px]",
-    chartStacked: "h-40",
+    chart: "w-[160px]",
+    chartMinH: "min-h-[220px]",
     dotR: 2.6,
     dotFont: 2.8,
-    table: "text-[13px]",
-    head: "text-[11px]",
-    rowPy: "py-1.5",
-    marker: "h-2 w-2",
+    feed: "text-[13px]",
+    badge: "h-7 w-7 text-[11px]",
+    rowPy: "py-2.5",
   },
   large: {
     chart: "w-[200px]",
-    chartStacked: "min-h-[280px] flex-1",
+    chartMinH: "min-h-[280px]",
     dotR: 3.2,
     dotFont: 3.2,
-    table: "text-[16px]",
-    head: "text-[13px]",
-    rowPy: "py-2.5",
-    marker: "h-3 w-3",
+    feed: "text-[14px]",
+    badge: "h-8 w-8 text-[12px]",
+    rowPy: "py-3",
   },
 } as const;
 
@@ -56,45 +60,45 @@ function StrikeZoneChart({
   pitches,
   className,
   size,
-  stacked,
+  fill,
 }: {
   pitches: PlayPitch[];
   className?: string;
   size: keyof typeof SIZE_STYLES;
-  stacked?: boolean;
+  fill?: boolean;
 }) {
   const styles = SIZE_STYLES[size];
   const plotted = pitches.filter((p) => p.isPitch);
   const szTop = plotted[plotted.length - 1]?.strikeZoneTop ?? 3.5;
   const szBottom = plotted[plotted.length - 1]?.strikeZoneBottom ?? 1.5;
   const zone = zoneRectPercent(szTop, szBottom);
+  const plate = homePlatePath(zone);
 
   return (
     <svg
       viewBox="0 0 100 100"
       className={cn(
-        "border border-border bg-scorebug",
-        stacked ? cn("w-full shrink-0", styles.chartStacked) : cn("shrink-0", styles.chart),
+        "border border-border bg-zone-chart-bg",
+        fill ? cn("h-full w-full", styles.chartMinH) : cn("shrink-0", styles.chart),
         className,
       )}
       aria-hidden
       preserveAspectRatio="xMidYMid meet"
     >
-      {/* Home plate */}
       <path
-        d="M42 92 L50 98 L58 92 L58 88 L42 88 Z"
-        fill="#262626"
-        stroke="#525252"
-        strokeWidth="0.6"
+        d={plate}
+        fill="var(--zone-chart-plate)"
+        stroke="var(--zone-chart-grid)"
+        strokeWidth="0.55"
       />
       <rect
         x={zone.x}
         y={zone.y}
         width={zone.width}
         height={zone.height}
-        fill="none"
-        stroke="#525252"
-        strokeWidth="0.8"
+        fill="var(--zone-chart-zone-fill)"
+        stroke="var(--zone-chart-grid)"
+        strokeWidth="0.85"
       />
       {[1, 2].map((i) => (
         <line
@@ -103,8 +107,9 @@ function StrikeZoneChart({
           y1={zone.y}
           x2={zone.x + (zone.width * i) / 3}
           y2={zone.y + zone.height}
-          stroke="#333"
-          strokeWidth="0.4"
+          stroke="var(--zone-chart-grid)"
+          strokeWidth="0.35"
+          opacity="0.8"
         />
       ))}
       {[1, 2].map((i) => (
@@ -114,8 +119,9 @@ function StrikeZoneChart({
           y1={zone.y + (zone.height * i) / 3}
           x2={zone.x + zone.width}
           y2={zone.y + (zone.height * i) / 3}
-          stroke="#333"
-          strokeWidth="0.4"
+          stroke="var(--zone-chart-grid)"
+          strokeWidth="0.35"
+          opacity="0.8"
         />
       ))}
       {plotted.map((pitch) => {
@@ -123,6 +129,7 @@ function StrikeZoneChart({
         const color = pitchResultColor(pitch);
         return (
           <g key={`${pitch.pitchNumber}-${pitch.callCode}`}>
+            <circle cx={dot.x} cy={dot.y} r={styles.dotR + 0.35} fill="rgb(0 0 0 / 0.2)" />
             <circle cx={dot.x} cy={dot.y} r={styles.dotR} fill={color} />
             <text
               x={dot.x}
@@ -142,94 +149,73 @@ function StrikeZoneChart({
   );
 }
 
-function PitchTable({
+/** Gameday-style vertical pitch list. */
+function PitchFeed({
   pitches,
   size,
-  showPitchType,
 }: {
   pitches: PlayPitch[];
   size: keyof typeof SIZE_STYLES;
-  showPitchType: boolean;
 }) {
   const styles = SIZE_STYLES[size];
 
   return (
-    <table className={cn("w-full text-left", styles.table)}>
-      <thead className="sticky top-0 bg-panel">
-        <tr className={cn("border-b border-border text-subtle", styles.head)}>
-          <th className="pb-2 pr-4 font-normal">#</th>
-          <th className="pb-2 pr-4 font-normal">Cnt</th>
-          <th className="pb-2 pr-4 font-normal">Result</th>
-          {showPitchType && <th className="pb-2 pr-4 font-normal">Pitch</th>}
-          <th className="pb-2 font-normal text-right">mph</th>
-        </tr>
-      </thead>
-      <tbody>
-        {pitches.map((p) => {
-          const color = pitchResultColor(p);
-          return (
-            <tr
-              key={`${p.pitchNumber}-${p.callCode}-${p.balls}-${p.strikes}`}
-              className="border-b border-border/50"
-            >
-              <td className={cn("pr-4 font-mono text-muted", styles.rowPy)}>
-                {p.isPitch ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      className={cn("inline-block rounded-full", styles.marker)}
-                      style={{ backgroundColor: color }}
-                    />
-                    {p.pitchNumber}
-                  </span>
-                ) : (
-                  "—"
-                )}
-              </td>
-              <td className={cn("pr-4 font-mono tabular-nums text-secondary", styles.rowPy)}>
-                {p.balls}-{p.strikes}
-              </td>
-              <td className={cn("pr-4 text-foreground", styles.rowPy)}>
-                <span>{p.callDescription}</span>
-                {p.review && (
-                  <span className="ml-2 text-[12px] font-medium text-amber-500">
-                    {reviewBadge(p.review)}
-                  </span>
-                )}
-              </td>
-              {showPitchType && (
-                <td className={cn("pr-4 text-muted", styles.rowPy)}>
-                  {p.typeDescription}
-                </td>
-              )}
-              <td
+    <ul className={cn("divide-y divide-border", styles.feed)} role="list">
+      {pitches.map((p) => {
+        const color = pitchResultColor(p);
+        return (
+          <li
+            key={`${p.pitchNumber}-${p.callCode}-${p.balls}-${p.strikes}`}
+            className={cn("flex items-start gap-3", styles.rowPy)}
+          >
+            {p.isPitch ? (
+              <span
                 className={cn(
-                  "text-right font-mono tabular-nums text-secondary",
-                  styles.rowPy,
+                  "flex shrink-0 items-center justify-center rounded-full font-bold text-white",
+                  styles.badge,
                 )}
+                style={{ backgroundColor: color }}
               >
-                {p.isPitch ? p.startSpeed.toFixed(1) : ""}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                {p.pitchNumber}
+              </span>
+            ) : (
+              <span className={cn("shrink-0 rounded-full bg-faint", styles.badge)} />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-medium leading-snug text-foreground">{p.callDescription}</p>
+              {p.isPitch && (
+                <p className="mt-0.5 text-muted">
+                  {p.startSpeed.toFixed(1)} mph {p.typeDescription}
+                </p>
+              )}
+              {p.review && (
+                <p className="mt-0.5 text-xs font-medium text-amber-500">{reviewBadge(p.review)}</p>
+              )}
+            </div>
+            <span className="shrink-0 pl-2 pt-0.5 font-mono text-sm tabular-nums text-secondary">
+              {p.balls} - {p.strikes}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
-/** Zone + pitch table. Use layout="stacked" for full-width dashboard display. */
-export function PitchSequence({
+function PitchFeedColumn({
   pitches,
-  className,
-  compact,
-  size,
-  layout = "horizontal",
+  resolvedSize,
+  contained,
   scrollToLatest,
-}: PitchSequenceProps) {
-  const resolvedSize = size ?? (compact ? "compact" : "default");
-  const showPitchType = resolvedSize !== "compact";
+  className,
+}: {
+  pitches: PlayPitch[];
+  resolvedSize: keyof typeof SIZE_STYLES;
+  contained: boolean;
+  scrollToLatest?: boolean;
+  className?: string;
+}) {
   const bottomRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(pitches.length);
 
   useEffect(() => {
@@ -240,40 +226,102 @@ export function PitchSequence({
     prevCountRef.current = pitches.length;
   }, [pitches.length, scrollToLatest]);
 
-  if (pitches.length === 0) {
-    return <p className="text-sm text-subtle">No pitches yet.</p>;
-  }
-
-  if (layout === "stacked") {
+  if (!contained) {
     return (
-      <div className={cn("flex h-full min-h-0 flex-col", className)}>
-        <div className="flex min-h-[240px] flex-[3] flex-col">
-          <StrikeZoneChart pitches={pitches} size={resolvedSize} stacked />
-        </div>
-
-        <div ref={scrollRef} className="mt-3 min-h-0 flex-[2] overflow-y-auto">
-          <PitchTable
-            pitches={pitches}
-            size={resolvedSize}
-            showPitchType={showPitchType}
-          />
-          <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
-        </div>
+      <div className={className}>
+        <PitchFeed pitches={pitches} size={resolvedSize} />
+        <div ref={bottomRef} className="h-px" aria-hidden />
       </div>
     );
   }
 
   return (
-    <div className={cn("flex gap-4", className)}>
-      <StrikeZoneChart pitches={pitches} size={resolvedSize} />
-
-      <div className="min-w-0 flex-1 overflow-x-auto">
-        <PitchTable
-          pitches={pitches}
-          size={resolvedSize}
-          showPitchType={showPitchType}
-        />
+    <div className={cn("flex min-h-0 flex-col overflow-hidden", className)}>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+        <div className="pr-2">
+          <PitchFeed pitches={pitches} size={resolvedSize} />
+          <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
+        </div>
       </div>
     </div>
   );
+}
+
+function SplitLayout({
+  pitches,
+  resolvedSize,
+  contained,
+  className,
+  scrollToLatest,
+}: {
+  pitches: PlayPitch[];
+  resolvedSize: keyof typeof SIZE_STYLES;
+  contained: boolean;
+  className?: string;
+  scrollToLatest?: boolean;
+}) {
+  const styles = SIZE_STYLES[resolvedSize];
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-3 md:flex-row",
+        contained ? "h-full min-h-0 overflow-hidden" : "items-start",
+        className,
+      )}
+    >
+      <PitchFeedColumn
+        pitches={pitches}
+        resolvedSize={resolvedSize}
+        contained={contained}
+        scrollToLatest={scrollToLatest}
+        className={cn(
+          "min-w-0 flex-[1]",
+          contained && "min-h-0",
+          !contained && "md:max-w-[38%]",
+        )}
+      />
+
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-[2] flex-col",
+          contained ? "h-full" : "w-full md:w-auto",
+          styles.chartMinH,
+        )}
+      >
+        <StrikeZoneChart pitches={pitches} size={resolvedSize} fill className="flex-1" />
+      </div>
+    </div>
+  );
+}
+
+/** Zone + Gameday pitch feed. Use layout="split" for dashboard; contained scrolls in-panel. */
+export function PitchSequence({
+  pitches,
+  className,
+  compact,
+  size,
+  layout = "split",
+  scrollToLatest,
+  contained = true,
+}: PitchSequenceProps) {
+  const resolvedSize = size ?? (compact ? "compact" : "default");
+
+  if (pitches.length === 0) {
+    return <p className="text-sm text-subtle">No pitches yet.</p>;
+  }
+
+  if (layout === "split" || layout === "stacked" || layout === "horizontal") {
+    return (
+      <SplitLayout
+        pitches={pitches}
+        resolvedSize={resolvedSize}
+        contained={contained}
+        className={className}
+        scrollToLatest={scrollToLatest}
+      />
+    );
+  }
+
+  return null;
 }

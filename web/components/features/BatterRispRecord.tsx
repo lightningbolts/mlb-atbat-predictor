@@ -43,15 +43,15 @@ export function BatterRispRecord({
   return (
     <div
       className={cn(
-        "mb-3 rounded border border-amber-900/40 bg-amber-950/20 px-3 py-2.5",
+        "mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/30",
         className,
       )}
     >
       <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-amber-400/90">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
           {stats.season} RISP
         </span>
-        <HittingLineSummary line={stats} />
+        <HittingLineSummary line={stats} className="text-amber-900/80 dark:text-subtle" />
       </div>
       <HittingStatPills line={stats} />
     </div>

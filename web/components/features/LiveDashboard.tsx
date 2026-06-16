@@ -112,7 +112,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
-                <Panel title="Current at-bat" className="min-h-0 flex-[3]">
+                <Panel title="Current at-bat" className="min-h-[380px] flex-[3]">
                   {gameState && (
                     <>
                       <BatterVsPitcherRecord
@@ -136,9 +136,10 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                     <PitchSequence
                       pitches={gameState?.atBatPitches ?? []}
                       size="large"
-                      layout="stacked"
+                      layout="split"
                       scrollToLatest
-                      className="h-full"
+                      contained
+                      className="min-h-0 flex-1"
                     />
                   )}
                 </Panel>
@@ -175,7 +176,7 @@ function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn("flex min-h-[180px] flex-col bg-panel p-3 lg:min-h-0", className)}>
+    <section className={cn("flex min-h-[220px] flex-col bg-panel p-3 lg:min-h-0", className)}>
       <h3 className="mb-2 shrink-0 text-xs font-medium text-muted">{title}</h3>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </section>

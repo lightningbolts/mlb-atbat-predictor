@@ -60,4 +60,7 @@ export const GENERIC_TRANSFORM: BallparkTransform = {
   offsetY: 3,
 };
 
+/** Expanded viewBox so deep flies / HRs stay inside the field outline. */
+export const FIELD_VIEW_BOX = "-16 -16 132 132";
+
 export { index as ballparkIndex };

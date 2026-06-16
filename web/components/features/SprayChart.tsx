@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   FIELD_SEGMENT_ORDER,
   FIELD_SEGMENT_STYLES,
+  FIELD_VIEW_BOX,
   GENERIC_FIELD_SEGMENTS,
   GENERIC_TRANSFORM,
   getBallparkByVenueId,
@@ -15,6 +16,7 @@ interface SprayChartProps {
   hit: HitData | null;
   venueId?: number | null;
   className?: string;
+  size?: "default" | "large";
 }
 
 function FieldBackground({ venueId }: { venueId?: number | null }) {
@@ -42,13 +44,19 @@ function FieldBackground({ venueId }: { venueId?: number | null }) {
   );
 }
 
+const SIZE_CLASSES = {
+  default: "max-w-[240px]",
+  large: "max-w-[400px]",
+} as const;
+
 /** Top-down field plot — MLB coordX/coordY in MLBAM hc_x/hc_y space. */
-export function SprayChart({ hit, venueId, className }: SprayChartProps) {
+export function SprayChart({ hit, venueId, className, size = "default" }: SprayChartProps) {
   if (!hit) {
     return (
       <div
         className={cn(
-          "flex aspect-square w-full max-w-[220px] items-center justify-center border border-border bg-scorebug text-xs text-subtle",
+          "flex aspect-square w-full items-center justify-center border border-border bg-zone-chart-bg text-xs text-subtle",
+          SIZE_CLASSES[size],
           className,
         )}
       >
@@ -61,23 +69,27 @@ export function SprayChart({ hit, venueId, className }: SprayChartProps) {
   const transform = park?.transform ?? GENERIC_TRANSFORM;
   const { x, y } = mapHitToSvg(hit.coordX, hit.coordY, transform);
   const home = mapHitToSvg(125, 200, transform);
+  const dotRadius = size === "large" ? 2.8 : 2.4;
 
   return (
-    <div className={cn("w-full max-w-[220px]", className)}>
-      <svg viewBox="0 0 100 100" className="w-full border border-border bg-[#1a2e1a]">
+    <div className={cn("w-full", SIZE_CLASSES[size], className)}>
+      <svg
+        viewBox={FIELD_VIEW_BOX}
+        className="aspect-square w-full border border-border bg-[#1a2e1a]"
+      >
         <FieldBackground venueId={venueId} />
-        <circle cx={x} cy={y} r="2.5" fill="#fbbf24" stroke="#fff" strokeWidth="0.5" />
         <line
           x1={home.x}
           y1={home.y}
           x2={x}
           y2={y}
           stroke="#fbbf24"
-          strokeWidth="0.4"
-          opacity="0.5"
+          strokeWidth="0.45"
+          opacity="0.55"
         />
+        <circle cx={x} cy={y} r={dotRadius} fill="#fbbf24" stroke="#fff" strokeWidth="0.55" />
       </svg>
-      <p className="mt-1 text-center text-[10px] text-subtle">
+      <p className="mt-1.5 text-center text-[11px] text-subtle">
         {hit.totalDistance > 0 ? `${Math.round(hit.totalDistance)} ft` : "In play"}
         {park ? ` · ${park.venueName}` : ""}
       </p>

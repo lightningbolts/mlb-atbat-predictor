@@ -44,9 +44,15 @@ export function HittingStatPills({ line }: { line: BatterHittingLine }) {
   );
 }
 
-export function HittingLineSummary({ line }: { line: BatterHittingLine }) {
+export function HittingLineSummary({
+  line,
+  className,
+}: {
+  line: BatterHittingLine;
+  className?: string;
+}) {
   return (
-    <span className="text-[11px] text-subtle">
+    <span className={cn("text-[11px] text-subtle", className)}>
       {line.plateAppearances} PA · {line.atBats} AB · {line.avg} AVG · {line.ops} OPS
     </span>
   );
