@@ -1,0 +1,248 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
+import { cn } from "@/lib/utils";
+import type { PlayPitch } from "@/types/mlb-live";
+import { pitchResultColor, toSvgPercent, zoneRectPercent } from "@/lib/mlb/strikeZoneMath";
+
+interface PitchSequenceProps {
+  pitches: PlayPitch[];
+  className?: string;
+  compact?: boolean;
+  size?: "compact" | "default" | "large";
+  layout?: "horizontal" | "stacked";
+  scrollToLatest?: boolean;
+}
+
+function reviewBadge(review: NonNullable<PlayPitch["review"]>): string {
+  return review.isOverturned ? "ABS overturned" : "ABS confirmed";
+}
+
+const SIZE_STYLES = {
+  compact: {
+    chart: "w-[120px]",
+    chartStacked: "h-32",
+    dotR: 3.2,
+    dotFont: 3.2,
+    table: "text-[12px]",
+    head: "text-[10px]",
+    rowPy: "py-1",
+    marker: "h-1.5 w-1.5",
+  },
+  default: {
+    chart: "w-[140px]",
+    chartStacked: "h-40",
+    dotR: 3.6,
+    dotFont: 3.4,
+    table: "text-[13px]",
+    head: "text-[11px]",
+    rowPy: "py-1.5",
+    marker: "h-2 w-2",
+  },
+  large: {
+    chart: "w-[200px]",
+    chartStacked: "h-52",
+    dotR: 5.5,
+    dotFont: 4.8,
+    table: "text-[16px]",
+    head: "text-[13px]",
+    rowPy: "py-2.5",
+    marker: "h-3 w-3",
+  },
+} as const;
+
+function StrikeZoneChart({
+  pitches,
+  className,
+  size,
+  stacked,
+}: {
+  pitches: PlayPitch[];
+  className?: string;
+  size: keyof typeof SIZE_STYLES;
+  stacked?: boolean;
+}) {
+  const styles = SIZE_STYLES[size];
+  const plotted = pitches.filter((p) => p.isPitch);
+  const szTop = plotted[plotted.length - 1]?.strikeZoneTop ?? 3.5;
+  const szBottom = plotted[plotted.length - 1]?.strikeZoneBottom ?? 1.5;
+  const zone = zoneRectPercent(szTop, szBottom);
+
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      className={cn(
+        "border border-neutral-800 bg-neutral-950",
+        stacked ? cn("w-full shrink-0", styles.chartStacked) : cn("shrink-0", styles.chart),
+        className,
+      )}
+      aria-hidden
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <rect
+        x={zone.x}
+        y={zone.y}
+        width={zone.width}
+        height={zone.height}
+        fill="none"
+        stroke="#525252"
+        strokeWidth="0.8"
+      />
+      {plotted.map((pitch) => {
+        const dot = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
+        const color = pitchResultColor(pitch);
+        return (
+          <g key={`${pitch.pitchNumber}-${pitch.callCode}`}>
+            <circle cx={dot.x} cy={dot.y} r={styles.dotR} fill={color} />
+            <text
+              x={dot.x}
+              y={dot.y}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={styles.dotFont}
+              fill="#fff"
+              fontWeight="bold"
+            >
+              {pitch.pitchNumber}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function PitchTable({
+  pitches,
+  size,
+  showPitchType,
+}: {
+  pitches: PlayPitch[];
+  size: keyof typeof SIZE_STYLES;
+  showPitchType: boolean;
+}) {
+  const styles = SIZE_STYLES[size];
+
+  return (
+    <table className={cn("w-full text-left", styles.table)}>
+      <thead className="sticky top-0 bg-[#141414]">
+        <tr className={cn("border-b border-neutral-800 text-neutral-600", styles.head)}>
+          <th className="pb-2 pr-4 font-normal">#</th>
+          <th className="pb-2 pr-4 font-normal">Cnt</th>
+          <th className="pb-2 pr-4 font-normal">Result</th>
+          {showPitchType && <th className="pb-2 pr-4 font-normal">Pitch</th>}
+          <th className="pb-2 font-normal text-right">mph</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pitches.map((p) => {
+          const color = pitchResultColor(p);
+          return (
+            <tr
+              key={`${p.pitchNumber}-${p.callCode}-${p.balls}-${p.strikes}`}
+              className="border-b border-neutral-800/50"
+            >
+              <td className={cn("pr-4 font-mono text-neutral-500", styles.rowPy)}>
+                {p.isPitch ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      className={cn("inline-block rounded-full", styles.marker)}
+                      style={{ backgroundColor: color }}
+                    />
+                    {p.pitchNumber}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </td>
+              <td className={cn("pr-4 font-mono tabular-nums text-neutral-400", styles.rowPy)}>
+                {p.balls}-{p.strikes}
+              </td>
+              <td className={cn("pr-4 text-neutral-200", styles.rowPy)}>
+                <span>{p.callDescription}</span>
+                {p.review && (
+                  <span className="ml-2 text-[12px] font-medium text-amber-500">
+                    {reviewBadge(p.review)}
+                  </span>
+                )}
+              </td>
+              {showPitchType && (
+                <td className={cn("pr-4 text-neutral-500", styles.rowPy)}>
+                  {p.typeDescription}
+                </td>
+              )}
+              <td
+                className={cn(
+                  "text-right font-mono tabular-nums text-neutral-300",
+                  styles.rowPy,
+                )}
+              >
+                {p.isPitch ? p.startSpeed.toFixed(1) : ""}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/** Zone + pitch table. Use layout="stacked" for full-width dashboard display. */
+export function PitchSequence({
+  pitches,
+  className,
+  compact,
+  size,
+  layout = "horizontal",
+  scrollToLatest,
+}: PitchSequenceProps) {
+  const resolvedSize = size ?? (compact ? "compact" : "default");
+  const showPitchType = resolvedSize !== "compact";
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef(pitches.length);
+
+  useEffect(() => {
+    if (!scrollToLatest || pitches.length === 0) return;
+    if (pitches.length >= prevCountRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+    prevCountRef.current = pitches.length;
+  }, [pitches.length, scrollToLatest]);
+
+  if (pitches.length === 0) {
+    return <p className="text-sm text-neutral-600">No pitches yet.</p>;
+  }
+
+  if (layout === "stacked") {
+    return (
+      <div className={cn("flex h-full min-h-0 flex-col", className)}>
+        <StrikeZoneChart pitches={pitches} size={resolvedSize} stacked />
+
+        <div ref={scrollRef} className="mt-3 min-h-0 flex-1 overflow-y-auto">
+          <PitchTable
+            pitches={pitches}
+            size={resolvedSize}
+            showPitchType={showPitchType}
+          />
+          <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex gap-4", className)}>
+      <StrikeZoneChart pitches={pitches} size={resolvedSize} />
+
+      <div className="min-w-0 flex-1 overflow-x-auto">
+        <PitchTable
+          pitches={pitches}
+          size={resolvedSize}
+          showPitchType={showPitchType}
+        />
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+ingestor/.env
+web/.env.local
+
+# Keep examples trackable
+!.env.example
+!**/.env.example
+
+# Dependencies & build
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Go
+ingestor/ingestor
+
+# OS
+.DS_Store

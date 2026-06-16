@@ -1,0 +1,213 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
+import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
+import { GameSidebar } from "@/components/features/GameSidebar";
+import { PlayByPlay } from "@/components/features/PlayByPlay";
+import { ProbabilityChart } from "@/components/features/ProbabilityChart";
+import { Scorebug } from "@/components/features/Scorebug";
+import { PitchSequence } from "@/components/features/PitchSequence";
+import { useLiveGameState } from "@/hooks/useLiveGameState";
+import { useLivePredictions } from "@/hooks/useLivePredictions";
+import { cn } from "@/lib/utils";
+import { DEFAULT_OUTCOME_PROBABILITIES } from "@/types/database";
+import { LIVE_GAME_STATUSES, type ActiveGame } from "@/types/mlb";
+
+const GAMES_REFRESH_MS = 10_000;
+
+interface LiveDashboardProps {
+  initialGames: ActiveGame[];
+  scheduleError?: string | null;
+}
+
+interface DashboardContentProps {
+  games: ActiveGame[];
+  selectedGamePk: number;
+  onSelectGame: (gamePk: number) => void;
+}
+
+function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardContentProps) {
+  const selectedGame =
+    games.find((g) => g.gamePk === selectedGamePk) ?? games[0];
+
+  const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
+  const { latestPrediction, isLoading: isPredictionsLoading, error, connectionStatus } =
+    useLivePredictions(selectedGamePk);
+
+  const probabilities =
+    latestPrediction?.outcome_probabilities ?? DEFAULT_OUTCOME_PROBABILITIES;
+
+  const onFirst = latestPrediction?.on_first ?? gameState?.onFirst ?? false;
+  const onSecond = latestPrediction?.on_second ?? gameState?.onSecond ?? false;
+  const onThird = latestPrediction?.on_third ?? gameState?.onThird ?? false;
+
+  const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && !latestPrediction;
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <ConnectionIndicator status={connectionStatus} error={error} />
+      <Scorebug
+        gameState={
+          gameState
+            ? { ...gameState, onFirst, onSecond, onThird }
+            : null
+        }
+      />
+
+      <div className="flex min-h-0 flex-1">
+        <div className="hidden w-[300px] shrink-0 border-r border-neutral-800 md:flex lg:w-[320px]">
+          <PlayByPlay
+            plays={gameState?.plays ?? []}
+            awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
+            homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+            className="w-full"
+          />
+        </div>
+
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="border-b border-neutral-800 p-2 lg:hidden">
+            <select
+              value={selectedGamePk}
+              onChange={(e) => onSelectGame(Number(e.target.value))}
+              className="w-full border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm"
+            >
+              {games.map((game) => (
+                <option key={game.gamePk} value={game.gamePk}>
+                  {game.label} ({game.status})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {showSkeleton ? (
+            <DashboardSkeleton />
+          ) : (
+            <>
+              <div className="h-44 shrink-0 border-b border-neutral-800 md:hidden">
+                <PlayByPlay
+                  plays={gameState?.plays ?? []}
+                  awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
+                  homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+                  className="h-full"
+                />
+              </div>
+
+              <div className="flex min-h-0 flex-1 flex-col gap-px bg-neutral-800">
+                <Panel title="Current at-bat" className="min-h-0 flex-[3]">
+                  {(gameState?.atBatPitches.length ?? 0) === 0 ? (
+                    <p className="text-sm text-neutral-600">Waiting for first pitch…</p>
+                  ) : (
+                    <PitchSequence
+                      pitches={gameState?.atBatPitches ?? []}
+                      size="large"
+                      layout="stacked"
+                      scrollToLatest
+                      className="h-full"
+                    />
+                  )}
+                </Panel>
+
+                <Panel title="Outcome odds" className="min-h-[160px] shrink-0 lg:flex-1">
+                  <div className="flex flex-1 flex-col justify-center">
+                    {latestPrediction ? (
+                      <ProbabilityChart probabilities={probabilities} />
+                    ) : (
+                      <p className="py-4 text-center text-sm text-neutral-500">
+                        {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")
+                          ? "Waiting on ingestor."
+                          : "Available when live."}
+                      </p>
+                    )}
+                  </div>
+                </Panel>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function Panel({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("flex min-h-[180px] flex-col bg-[#141414] p-3 lg:min-h-0", className)}>
+      <h3 className="mb-2 shrink-0 text-xs text-neutral-500">{title}</h3>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+    </section>
+  );
+}
+
+function NoGamesState({ scheduleError }: { scheduleError?: string | null }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#0f0f0f] px-6">
+      <div className="max-w-sm text-center">
+        <h1 className="text-lg font-medium text-neutral-200">No games on the board</h1>
+        <p className="mt-2 text-sm text-neutral-500">Nothing live or upcoming today.</p>
+        {scheduleError && <p className="mt-4 text-sm text-red-400/80">{scheduleError}</p>}
+      </div>
+    </div>
+  );
+}
+
+export function LiveDashboard({ initialGames, scheduleError }: LiveDashboardProps) {
+  const [games, setGames] = useState(initialGames);
+  const [selectedGamePk, setSelectedGamePk] = useState<number | null>(
+    initialGames[0]?.gamePk ?? null,
+  );
+
+  const refreshGames = useCallback(async () => {
+    try {
+      const response = await fetch("/api/games", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = (await response.json()) as { games: ActiveGame[] };
+      setGames(data.games);
+      setSelectedGamePk((current) => {
+        if (current && data.games.some((g) => g.gamePk === current)) return current;
+        const firstLive = data.games.find((g) => LIVE_GAME_STATUSES.has(g.status));
+        return firstLive?.gamePk ?? data.games[0]?.gamePk ?? null;
+      });
+    } catch {
+      // keep stale
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshGames();
+    const interval = setInterval(() => void refreshGames(), GAMES_REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [refreshGames]);
+
+  if (games.length === 0 || selectedGamePk === null) {
+    return <NoGamesState scheduleError={scheduleError} />;
+  }
+
+  return (
+    <div className="flex h-screen min-h-0 bg-[#0f0f0f] text-neutral-200">
+      <div className="hidden h-full w-52 shrink-0 border-r border-neutral-800 lg:block">
+        <GameSidebar
+          games={games}
+          selectedGamePk={selectedGamePk}
+          onSelectGame={setSelectedGamePk}
+        />
+      </div>
+
+      <DashboardContent
+        key={selectedGamePk}
+        games={games}
+        selectedGamePk={selectedGamePk}
+        onSelectGame={setSelectedGamePk}
+      />
+    </div>
+  );
+}
