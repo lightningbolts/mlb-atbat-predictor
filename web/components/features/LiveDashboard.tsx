@@ -5,8 +5,10 @@ import { useCallback, useEffect, useState } from "react";
 import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
+import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
+import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
 import { GameSidebar } from "@/components/features/GameSidebar";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
@@ -37,9 +39,11 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   const selectedGame =
     games.find((g) => g.gamePk === selectedGamePk) ?? games[0];
 
-  const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
+  const { gameState, boxScore, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
   const { latestPrediction, isLoading: isPredictionsLoading, error, connectionStatus } =
     useLivePredictions(selectedGamePk);
+
+  const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
 
   const probabilities =
     latestPrediction?.outcome_probabilities ?? DEFAULT_OUTCOME_PROBABILITIES;
@@ -63,6 +67,12 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <ConnectionIndicator status={connectionStatus} error={error} />
+      <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {activeTab === "box" ? (
+        <BoxScoreView boxScore={boxScore} isLoading={isFeedLoading} />
+      ) : (
+        <>
       <Scorebug
         gameState={
           gameState
@@ -162,6 +172,8 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
           )}
         </main>
       </div>
+        </>
+      )}
     </div>
   );
 }

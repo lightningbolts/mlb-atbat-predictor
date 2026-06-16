@@ -2,23 +2,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { LiveGameState } from "@/types/mlb-live";
 
 const LIVE_FEED_POLL_MS = 3_000;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
+  boxScore: GameBoxScore | null;
   isLoading: boolean;
   error: string | null;
 }
 
 /**
- * Polls the MLB live feed every 3s for real-time count, matchup, and bases.
+ * Polls the MLB live feed every 3s for real-time count, matchup, bases, and box score.
  * This runs independently of Supabase so the dashboard is never stuck waiting
  * on ingestor predictions.
  */
 export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
+  const [boxScore, setBoxScore] = useState<GameBoxScore | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,8 +33,12 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
         throw new Error(body.error ?? `Live feed error ${response.status}`);
       }
 
-      const data = (await response.json()) as { state: LiveGameState };
+      const data = (await response.json()) as {
+        state: LiveGameState;
+        boxScore: GameBoxScore | null;
+      };
       setGameState(data.state);
+      setBoxScore(data.boxScore ?? null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch live game state");
@@ -47,6 +54,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     }
 
     setGameState(null);
+    setBoxScore(null);
     setIsLoading(true);
     setError(null);
 
@@ -58,5 +66,5 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     return () => window.clearInterval(pollId);
   }, [gamePk, fetchState]);
 
-  return { gameState, isLoading, error };
+  return { gameState, boxScore, isLoading, error };
 }

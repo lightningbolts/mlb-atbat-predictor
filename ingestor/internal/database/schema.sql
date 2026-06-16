@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS games (
     venue_name          TEXT,
     official_date       DATE,
     game_state          JSONB,
+    box_score           JSONB,
     feed_synced_at      TIMESTAMPTZ,
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -57,6 +58,10 @@ CREATE INDEX IF NOT EXISTS idx_games_season ON games (season, game_date DESC);
 
 COMMENT ON TABLE games IS 'Regular-season MLB games synced from the Stats API schedule endpoint.';
 COMMENT ON COLUMN games.game_state IS 'Parsed live feed (play-by-play, pitches, hit data) from MLB feed/live endpoint.';
+COMMENT ON COLUMN games.box_score IS 'Parsed box score (linescore, batting/pitching lines, game info) from MLB feed/live endpoint.';
+
+-- Migration for existing databases:
+-- ALTER TABLE games ADD COLUMN IF NOT EXISTS box_score JSONB;
 
 -- RLS (run in Supabase SQL editor after creating the table):
 -- ALTER TABLE games ENABLE ROW LEVEL SECURITY;

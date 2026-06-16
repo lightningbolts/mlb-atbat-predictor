@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { fetchLiveGameState } from "@/lib/mlb/liveFeed";
+import { fetchGameFeed } from "@/lib/mlb/liveFeed";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +17,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   try {
-    const state = await fetchLiveGameState(gamePk);
-    return NextResponse.json({ state });
+    const { gameState, boxScore } = await fetchGameFeed(gamePk);
+    return NextResponse.json({ state: gameState, boxScore });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch live feed";
     return NextResponse.json({ error: message }, { status: 502 });

@@ -6,12 +6,15 @@ import { useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
+import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
+import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useGamePredictions } from "@/hooks/useGamePredictions";
 import { useGameState } from "@/hooks/useGameState";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
@@ -49,7 +52,13 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
   const { gameState, isLoading, error, source, feedSyncedAt } = useGameState(game.game_pk, {
     poll: isLive,
   });
+  const {
+    boxScore,
+    isLoading: isBoxScoreLoading,
+    error: boxScoreError,
+  } = useGameBoxScore(game.game_pk, { poll: isLive });
 
+  const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -143,22 +152,32 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
         </div>
       )}
 
-      {isLoading && !gameState ? (
+      {isLoading && !gameState && activeTab === "plays" ? (
         <div className="flex flex-1 flex-col p-4">
           <Skeleton className="mb-4 h-14 w-full" />
           <DashboardSkeleton />
         </div>
-      ) : !gameState ? (
-        <div className="flex flex-1 items-center justify-center px-6 text-center">
-          <div>
-            <p className="text-sm text-secondary">No play-by-play data for this game.</p>
-            <p className="mt-2 text-xs text-subtle">
-              Run <code className="text-secondary">npm run sync-game-feeds</code> to backfill feeds.
-            </p>
-          </div>
-        </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
+          <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+          {activeTab === "box" ? (
+            <BoxScoreView
+              boxScore={boxScore}
+              isLoading={isBoxScoreLoading}
+              error={boxScoreError}
+            />
+          ) : !gameState ? (
+            <div className="flex flex-1 items-center justify-center px-6 text-center">
+              <div>
+                <p className="text-sm text-secondary">No play-by-play data for this game.</p>
+                <p className="mt-2 text-xs text-subtle">
+                  Run <code className="text-secondary">npm run sync-game-feeds</code> to backfill feeds, or switch to the Box tab.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
           <Scorebug gameState={displayState} />
 
           <div className="flex min-h-0 flex-1">
@@ -262,6 +281,8 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
               </div>
             </main>
           </div>
+            </>
+          )}
         </div>
       )}
     </div>

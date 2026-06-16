@@ -1,3 +1,5 @@
+import { parseBoxScore } from "@/lib/mlb/boxScore";
+import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type {
   AllPlayRaw,
   BaseOccupancy,
@@ -10,6 +12,11 @@ import type {
   PlayPitch,
   PitchReview,
 } from "@/types/mlb-live";
+
+export interface GameFeed {
+  gameState: LiveGameState;
+  boxScore: GameBoxScore | null;
+}
 
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 
@@ -480,7 +487,7 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
   };
 }
 
-export async function fetchLiveGameState(gamePk: number): Promise<LiveGameState> {
+export async function fetchGameFeed(gamePk: number): Promise<GameFeed> {
   const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
     cache: "no-store",
   });
@@ -490,5 +497,13 @@ export async function fetchLiveGameState(gamePk: number): Promise<LiveGameState>
   }
 
   const feed = (await response.json()) as MLBLiveFeedResponse;
-  return parseLiveFeed(gamePk, feed);
+  return {
+    gameState: parseLiveFeed(gamePk, feed),
+    boxScore: parseBoxScore(gamePk, feed),
+  };
+}
+
+export async function fetchLiveGameState(gamePk: number): Promise<LiveGameState> {
+  const { gameState } = await fetchGameFeed(gamePk);
+  return gameState;
 }

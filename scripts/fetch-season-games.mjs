@@ -153,7 +153,7 @@ async function main() {
   console.log(
     `\nDone. ${rows.length} games synced (${finalCount} final, ${liveCount} live/in progress).`,
   );
-  console.log("\nNext: npm run sync-game-feeds  (from web/) to store full play-by-play in Supabase.");
+  console.log("\nNext: npm run sync-game-feeds  (from web/) to store play-by-play and box scores in Supabase.");
 }
 
 main().catch((err) => {

@@ -156,8 +156,8 @@ export async function listGamesForFeedSync(creds, webPackageJson, onlyGamePk) {
   }
 }
 
-/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number} gamePk @param {object} state */
-export async function updateGameFeedViaPostgres(creds, webPackageJson, gamePk, state) {
+/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number} gamePk @param {object} state @param {object | null} boxScore */
+export async function updateGameFeedViaPostgres(creds, webPackageJson, gamePk, state, boxScore) {
   const Pool = loadPg(webPackageJson);
   const pool = new Pool({ connectionString: creds.databaseUrl });
 
@@ -165,17 +165,19 @@ export async function updateGameFeedViaPostgres(creds, webPackageJson, gamePk, s
     await pool.query(
       `UPDATE games SET
          game_state = $2::jsonb,
-         feed_synced_at = $3,
-         away_score = $4,
-         home_score = $5,
-         status = $6,
-         venue_id = $7,
-         venue_name = $8,
-         updated_at = $3
+         box_score = $3::jsonb,
+         feed_synced_at = $4,
+         away_score = $5,
+         home_score = $6,
+         status = $7,
+         venue_id = $8,
+         venue_name = $9,
+         updated_at = $4
        WHERE game_pk = $1`,
       [
         gamePk,
         JSON.stringify(state),
+        boxScore ? JSON.stringify(boxScore) : null,
         new Date().toISOString(),
         state.awayRuns,
         state.homeRuns,

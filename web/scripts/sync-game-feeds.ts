@@ -1,5 +1,5 @@
 /**
- * Fetches full play-by-play feeds for games in Supabase and stores parsed game_state.
+ * Fetches full play-by-play feeds and box scores for games in Supabase.
  *
  * Auth (from web/.env.local + ingestor/.env):
  *   - SUPABASE_SERVICE_ROLE_KEY + NEXT_PUBLIC_SUPABASE_URL, or
@@ -13,7 +13,8 @@ import { createRequire } from "node:module";
 
 import { createClient } from "@supabase/supabase-js";
 
-import { fetchLiveGameState } from "../lib/mlb/liveFeed";
+import { fetchGameFeed } from "../lib/mlb/liveFeed";
+import type { GameBoxScore } from "../types/mlb-boxscore";
 import type { LiveGameState } from "../types/mlb-live";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -105,12 +106,14 @@ async function updateGameFeedRest(
   serviceRoleKey: string,
   gamePk: number,
   state: LiveGameState,
+  boxScore: GameBoxScore | null,
 ): Promise<void> {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const { error } = await supabase
     .from("games")
     .update({
       game_state: state,
+      box_score: boxScore,
       feed_synced_at: new Date().toISOString(),
       away_score: state.awayRuns,
       home_score: state.homeRuns,
@@ -164,17 +167,17 @@ async function main() {
 
   await mapPool(targets, CONCURRENCY, async (game) => {
     try {
-      const state = await fetchLiveGameState(game.game_pk);
+      const { gameState, boxScore } = await fetchGameFeed(game.game_pk);
 
       if (creds.mode === "postgres") {
-        await updateGameFeedViaPostgres(creds, WEB_PKG, game.game_pk, state);
+        await updateGameFeedViaPostgres(creds, WEB_PKG, game.game_pk, gameState, boxScore);
       } else {
-        await updateGameFeedRest(creds.supabaseUrl, creds.serviceRoleKey, game.game_pk, state);
+        await updateGameFeedRest(creds.supabaseUrl, creds.serviceRoleKey, game.game_pk, gameState, boxScore);
       }
 
       synced += 1;
       console.log(
-        `  ✓ ${game.game_pk} — ${state.awayAbbrev} @ ${state.homeAbbrev} (${state.plays.length} plays)`,
+        `  ✓ ${game.game_pk} — ${gameState.awayAbbrev} @ ${gameState.homeAbbrev} (${gameState.plays.length} plays, box score ${boxScore ? "yes" : "no"})`,
       );
     } catch (err) {
       failed += 1;

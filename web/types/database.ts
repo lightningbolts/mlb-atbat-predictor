@@ -3,6 +3,9 @@
  * JSONB keys use snake_case to match the Go ingestor persistence layer.
  */
 
+import type { GameBoxScore } from "@/types/mlb-boxscore";
+import type { LiveGameState } from "@/types/mlb-live";
+
 /** Terminal at-bat outcome probability distribution (sums to ~1.0). */
 export interface OutcomeProbabilities {
   strikeout: number;
@@ -50,7 +53,8 @@ export interface Game {
   venue_id: number | null;
   venue_name: string | null;
   official_date: string | null;
-  game_state: unknown | null;
+  game_state: LiveGameState | null;
+  box_score: GameBoxScore | null;
   feed_synced_at: string | null;
   updated_at: string;
 }
