@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { BatterRispRecord } from "@/components/features/BatterRispRecord";
+import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { GameSidebar } from "@/components/features/GameSidebar";
@@ -9,6 +11,8 @@ import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
 import { PitchSequence } from "@/components/features/PitchSequence";
+import { useBatterRisp } from "@/hooks/useBatterRisp";
+import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { cn } from "@/lib/utils";
@@ -42,6 +46,16 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   const onFirst = latestPrediction?.on_first ?? gameState?.onFirst ?? false;
   const onSecond = latestPrediction?.on_second ?? gameState?.onSecond ?? false;
   const onThird = latestPrediction?.on_third ?? gameState?.onThird ?? false;
+  const runnersInScoringPosition = onSecond || onThird;
+
+  const { record: matchupRecord, isLoading: isMatchupLoading } = useBatterVsPitcher(
+    gameState?.batterId,
+    gameState?.pitcherId,
+  );
+  const { stats: rispStats, isLoading: isRispLoading } = useBatterRisp(
+    gameState?.batterId,
+    runnersInScoringPosition,
+  );
 
   const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && !latestPrediction;
 
@@ -98,6 +112,23 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
 
               <div className="flex min-h-0 flex-1 flex-col gap-px bg-neutral-800">
                 <Panel title="Current at-bat" className="min-h-0 flex-[3]">
+                  {gameState && (
+                    <>
+                      <BatterVsPitcherRecord
+                        batterName={gameState.batterName}
+                        pitcherName={gameState.pitcherName}
+                        record={matchupRecord}
+                        isLoading={isMatchupLoading}
+                      />
+                      {runnersInScoringPosition && (
+                        <BatterRispRecord
+                          batterName={gameState.batterName}
+                          stats={rispStats}
+                          isLoading={isRispLoading}
+                        />
+                      )}
+                    </>
+                  )}
                   {(gameState?.atBatPitches.length ?? 0) === 0 ? (
                     <p className="text-sm text-neutral-600">Waiting for first pitch…</p>
                   ) : (

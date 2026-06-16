@@ -107,6 +107,27 @@ export interface PlayByPlayEntry {
   detail: PlayDetail;
 }
 
+export interface BatterHittingLine {
+  plateAppearances: number;
+  atBats: number;
+  hits: number;
+  homeRuns: number;
+  strikeOuts: number;
+  walks: number;
+  avg: string;
+  ops: string;
+}
+
+export interface BatterVsPitcherRecord extends BatterHittingLine {
+  batterId: number;
+  pitcherId: number;
+}
+
+export interface BatterRispStats extends BatterHittingLine {
+  batterId: number;
+  season: string;
+}
+
 export interface LiveGameState {
   gamePk: number;
   venueId: number | null;
@@ -118,7 +139,9 @@ export interface LiveGameState {
   homeAbbrev: string;
   awayRuns: number;
   homeRuns: number;
+  batterId: number | null;
   batterName: string;
+  pitcherId: number | null;
   pitcherName: string;
   inning: number;
   inningHalf: string;
@@ -243,8 +266,8 @@ export interface MLBLiveFeedResponse {
       allPlays?: AllPlayRaw[];
       currentPlay: {
         matchup: {
-          batter: { fullName: string };
-          pitcher: { fullName: string };
+          batter: { id?: number; fullName: string };
+          pitcher: { id?: number; fullName: string };
         };
         count: { balls: number; strikes: number; outs: number };
         about: { inning?: number; halfInning?: string };
