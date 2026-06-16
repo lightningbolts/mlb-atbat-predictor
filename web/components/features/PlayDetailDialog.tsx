@@ -7,6 +7,7 @@ import type { HitData, PlayDetail } from "@/types/mlb-live";
 
 interface PlayDetailDialogProps {
   play: PlayDetail | null;
+  venueId?: number | null;
   onClose: () => void;
 }
 
@@ -43,14 +44,14 @@ function fieldZoneLabel(zone: string): string {
   return zones[zone] ?? (zone || "—");
 }
 
-function ContactMetrics({ hit }: { hit: HitData }) {
+function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | null }) {
   return (
     <div className="border-t border-neutral-800 pt-3">
       <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-neutral-500">
         Ball in play
       </p>
       <div className="flex gap-4">
-        <SprayChart hit={hit} className="shrink-0" />
+        <SprayChart hit={hit} venueId={venueId} className="shrink-0" />
         <div className="min-w-0 flex-1 space-y-3">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
             <Stat label="Exit velo" value={`${fmtNum(hit.launchSpeed)} mph`} />
@@ -110,7 +111,7 @@ function ContactMetrics({ hit }: { hit: HitData }) {
   );
 }
 
-export function PlayDetailDialog({ play, onClose }: PlayDetailDialogProps) {
+export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogProps) {
   const hit = play?.hit;
 
   return (
@@ -139,7 +140,7 @@ export function PlayDetailDialog({ play, onClose }: PlayDetailDialogProps) {
 
           {play.pitches.length > 0 && <PitchSequence pitches={play.pitches} />}
 
-          {hit && <ContactMetrics hit={hit} />}
+          {hit && <ContactMetrics hit={hit} venueId={venueId} />}
 
           {!hit && play.pitches.length === 0 && (
             <p className="text-sm text-neutral-600">No pitch data.</p>

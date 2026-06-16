@@ -62,6 +62,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
             plays={gameState?.plays ?? []}
             awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
             homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+            venueId={gameState?.venueId}
             className="w-full"
           />
         </div>
@@ -90,6 +91,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                   plays={gameState?.plays ?? []}
                   awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
                   homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+                  venueId={gameState?.venueId}
                   className="h-full"
                 />
               </div>

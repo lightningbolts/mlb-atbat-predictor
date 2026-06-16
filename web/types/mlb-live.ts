@@ -17,6 +17,8 @@ export interface PlayPitch {
   plateZ: number;
   isStrike: boolean;
   isBall: boolean;
+  isInPlay: boolean;
+  isOut: boolean;
   isPitch: boolean;
   strikeZoneTop: number;
   strikeZoneBottom: number;
@@ -49,6 +51,22 @@ export interface HitData {
   pfxZ?: number;
 }
 
+export interface BaseOccupancy {
+  first?: string;
+  second?: string;
+  third?: string;
+}
+
+export interface GameSituation {
+  awayScore: number;
+  homeScore: number;
+  outs: number;
+  bases: BaseOccupancy;
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+}
+
 export interface PlayDetail {
   atBatIndex: number;
   batterId: number;
@@ -79,12 +97,20 @@ export interface PlayByPlayEntry {
   description: string;
   awayScore: number;
   homeScore: number;
+  outs: number;
+  bases: BaseOccupancy;
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+  situationBefore: GameSituation;
   isScoringPlay: boolean;
   detail: PlayDetail;
 }
 
 export interface LiveGameState {
   gamePk: number;
+  venueId: number | null;
+  venueName: string | null;
   gameStatus: string;
   awayTeam: string;
   awayAbbrev: string;
@@ -123,6 +149,8 @@ interface PitchEventRaw {
     eventType?: string;
     isStrike?: boolean;
     isBall?: boolean;
+    isInPlay?: boolean;
+    isOut?: boolean;
     hasReview?: boolean;
     call?: { code?: string; description?: string };
     type?: { code?: string; description?: string };
@@ -181,11 +209,17 @@ export interface AllPlayRaw {
     pitcher?: { fullName?: string };
   };
   playEvents?: PitchEventRaw[];
+  count?: { balls?: number; strikes?: number; outs?: number };
+  runners?: Array<{
+    movement?: { end?: string | null };
+    details?: { runner?: { fullName?: string } };
+  }>;
 }
 
 export interface MLBLiveFeedResponse {
   gameData: {
     status: { abstractGameState: string };
+    venue?: { id?: number; name?: string };
     teams: {
       away: { name: string; abbreviation?: string };
       home: { name: string; abbreviation?: string };

@@ -7,7 +7,7 @@ interface BaseDiamondProps {
   onSecond: boolean;
   onThird: boolean;
   className?: string;
-  size?: "default" | "compact";
+  size?: "default" | "compact" | "tiny";
 }
 
 function Base({
@@ -17,9 +17,10 @@ function Base({
 }: {
   occupied: boolean;
   className?: string;
-  size: "default" | "compact";
+  size: "default" | "compact" | "tiny";
 }) {
-  const dim = size === "compact" ? "h-2.5 w-2.5" : "h-7 w-7";
+  const dim =
+    size === "tiny" ? "h-1.5 w-1.5" : size === "compact" ? "h-2.5 w-2.5" : "h-7 w-7";
   return (
     <div
       className={cn(
@@ -39,7 +40,8 @@ export function BaseDiamond({
   className,
   size = "default",
 }: BaseDiamondProps) {
-  const container = size === "compact" ? "h-9 w-9" : "h-36 w-36";
+  const container =
+    size === "tiny" ? "h-6 w-6" : size === "compact" ? "h-9 w-9" : "h-36 w-36";
 
   return (
     <div className={cn("relative mx-auto", container, className)}>
@@ -47,8 +49,8 @@ export function BaseDiamond({
         <path
           d="M50 88 L12 50 L50 12 L88 50 Z"
           fill="none"
-          stroke={size === "compact" ? "#525252" : "#404040"}
-          strokeWidth={size === "compact" ? "1.2" : "0.75"}
+          stroke={size === "default" ? "#404040" : "#525252"}
+          strokeWidth={size === "tiny" ? "1.5" : size === "compact" ? "1.2" : "0.75"}
         />
       </svg>
       <Base occupied={onSecond} size={size} className="absolute left-1/2 top-0 -translate-x-1/2" />

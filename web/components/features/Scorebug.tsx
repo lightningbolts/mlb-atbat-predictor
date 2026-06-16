@@ -3,20 +3,16 @@
 import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { cn } from "@/lib/utils";
 import type { LiveGameState } from "@/types/mlb-live";
-import { formatInningHalf } from "@/lib/utils";
 
 interface ScorebugProps {
   gameState: LiveGameState | null;
   className?: string;
 }
 
-function InningArrow({ halfInning }: { halfInning: string }) {
-  const isTop = halfInning.toLowerCase().startsWith("top");
-  return (
-    <span className="text-[11px] text-amber-400" aria-hidden>
-      {isTop ? "▲" : "▼"}
-    </span>
-  );
+function inningLabel(inning: number, halfInning: string): string {
+  const half = halfInning.toLowerCase();
+  const prefix = half.startsWith("top") ? "TOP" : half.startsWith("bot") ? "BOT" : half.toUpperCase();
+  return `${prefix} ${inning}`;
 }
 
 /** Fox-style broadcast scorebug with score, inning, count, outs, bases, matchup. */
@@ -72,13 +68,10 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
       </div>
 
       {/* Inning */}
-      <div className="flex min-w-[56px] flex-col items-center justify-center border-r border-neutral-800/80 px-2">
-        <span className="text-[10px] uppercase text-neutral-500">Inn</span>
-        <div className="flex items-center gap-0.5 font-mono text-lg font-semibold tabular-nums">
-          <span>{inning}</span>
-          <InningArrow halfInning={inningHalf} />
-        </div>
-        <span className="text-[9px] text-neutral-600">{formatInningHalf(inningHalf)}</span>
+      <div className="flex min-w-[64px] items-center justify-center border-r border-neutral-800/80 px-3">
+        <span className="font-mono text-sm font-semibold tracking-wide text-neutral-200">
+          {inningLabel(inning, inningHalf)}
+        </span>
       </div>
 
       {/* Count */}

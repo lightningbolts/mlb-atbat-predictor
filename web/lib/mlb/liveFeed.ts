@@ -1,5 +1,7 @@
 import type {
   AllPlayRaw,
+  BaseOccupancy,
+  GameSituation,
   HitData,
   LiveGameState,
   MLBLiveFeedResponse,
@@ -79,6 +81,64 @@ function parseHitData(
   };
 }
 
+function emptyBases(): BaseOccupancy {
+  return {};
+}
+
+function parseBasesFromRunners(
+  runners: AllPlayRaw["runners"],
+): { bases: BaseOccupancy; onFirst: boolean; onSecond: boolean; onThird: boolean } {
+  const bases: BaseOccupancy = {};
+
+  for (const runner of runners ?? []) {
+    const end = runner.movement?.end;
+    const name = runner.details?.runner?.fullName;
+    if (!name || !end) continue;
+    if (end === "1B") bases.first = name;
+    if (end === "2B") bases.second = name;
+    if (end === "3B") bases.third = name;
+  }
+
+  return {
+    bases,
+    onFirst: Boolean(bases.first),
+    onSecond: Boolean(bases.second),
+    onThird: Boolean(bases.third),
+  };
+}
+
+function parsePostSituation(play: AllPlayRaw): GameSituation {
+  const { bases, onFirst, onSecond, onThird } = parseBasesFromRunners(play.runners);
+
+  return {
+    awayScore: play.result?.awayScore ?? 0,
+    homeScore: play.result?.homeScore ?? 0,
+    outs: play.count?.outs ?? 0,
+    bases,
+    onFirst,
+    onSecond,
+    onThird,
+  };
+}
+
+function cloneSituation(situation: GameSituation): GameSituation {
+  return {
+    ...situation,
+    bases: { ...situation.bases },
+  };
+}
+
+function resetHalfInningSituation(situation: GameSituation): GameSituation {
+  return {
+    ...situation,
+    outs: 0,
+    bases: emptyBases(),
+    onFirst: false,
+    onSecond: false,
+    onThird: false,
+  };
+}
+
 function parseReview(event: PitchEventRaw): PitchReview | undefined {
   const review = event.reviewDetails;
   if (!review && !event.details?.hasReview) return undefined;
@@ -135,6 +195,8 @@ function attachChallengeFromDescription(
         plateZ: 0,
         isStrike: false,
         isBall: false,
+        isInPlay: false,
+        isOut: false,
         isPitch: false,
         strikeZoneTop: 3.5,
         strikeZoneBottom: 1.5,
@@ -180,6 +242,8 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     plateZ: coords.pZ,
     isStrike: Boolean(event.details?.isStrike),
     isBall: Boolean(event.details?.isBall),
+    isInPlay: Boolean(event.details?.isInPlay),
+    isOut: Boolean(event.details?.isOut),
     isPitch: true,
     strikeZoneTop: event.pitchData.strikeZoneTop ?? 3.5,
     strikeZoneBottom: event.pitchData.strikeZoneBottom ?? 1.5,
@@ -209,6 +273,8 @@ function parseActionEvent(event: PitchEventRaw, rowNumber: number): PlayPitch | 
     plateZ: 0,
     isStrike: false,
     isBall: false,
+    isInPlay: false,
+    isOut: false,
     isPitch: false,
     strikeZoneTop: 3.5,
     strikeZoneBottom: 1.5,
@@ -305,8 +371,28 @@ function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] 
 
   const entries: PlayByPlayEntry[] = [];
   const batterStats = new Map<number, BatterLine>();
+  let situation: GameSituation = {
+    awayScore: 0,
+    homeScore: 0,
+    outs: 0,
+    bases: emptyBases(),
+    onFirst: false,
+    onSecond: false,
+    onThird: false,
+  };
+  let currentHalf = "";
 
   for (const play of allPlays) {
+    const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
+    if (halfKey !== currentHalf) {
+      currentHalf = halfKey;
+      situation = resetHalfInningSituation(situation);
+    }
+
+    const situationBefore = cloneSituation(situation);
+    const postSituation = parsePostSituation(play);
+    situation = postSituation;
+
     const event = play.result?.event ?? "";
     const batterId = play.matchup?.batter?.id ?? 0;
     const batterLine =
@@ -325,8 +411,14 @@ function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] 
       batterAtBats: detail.batterAtBats,
       event: detail.event,
       description: detail.description,
-      awayScore: detail.awayScore,
-      homeScore: detail.homeScore,
+      awayScore: postSituation.awayScore,
+      homeScore: postSituation.homeScore,
+      outs: postSituation.outs,
+      bases: postSituation.bases,
+      onFirst: postSituation.onFirst,
+      onSecond: postSituation.onSecond,
+      onThird: postSituation.onThird,
+      situationBefore,
       isScoringPlay: detail.isScoringPlay,
       detail,
     });
@@ -350,6 +442,8 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
 
   return {
     gamePk,
+    venueId: feed.gameData.venue?.id ?? null,
+    venueName: feed.gameData.venue?.name ?? null,
     gameStatus: feed.gameData.status.abstractGameState,
     awayTeam: teams.away.name,
     awayAbbrev: teams.away.abbreviation ?? teams.away.name.slice(0, 3).toUpperCase(),

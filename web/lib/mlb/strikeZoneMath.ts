@@ -5,6 +5,8 @@ export const PADDING_FT = 0.35;
 
 export const PITCH_BALL_COLOR = "#22c55e";
 export const PITCH_STRIKE_COLOR = "#ef4444";
+export const PITCH_IN_PLAY_SAFE_COLOR = "#3b82f6";
+export const PITCH_IN_PLAY_OUT_COLOR = "#a855f7";
 export const PITCH_NEUTRAL_COLOR = "#737373";
 export const PITCH_REVIEW_COLOR = "#f59e0b";
 
@@ -40,9 +42,14 @@ export function zoneRectPercent(szTop: number, szBottom: number) {
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-export function pitchResultColor(pitch: Pick<PlayPitch, "isBall" | "isStrike" | "isPitch" | "review">): string {
+export function pitchResultColor(
+  pitch: Pick<PlayPitch, "isBall" | "isStrike" | "isInPlay" | "isOut" | "isPitch" | "review">,
+): string {
   if (pitch.review) return PITCH_REVIEW_COLOR;
   if (!pitch.isPitch) return PITCH_NEUTRAL_COLOR;
+  if (pitch.isInPlay) {
+    return pitch.isOut ? PITCH_IN_PLAY_OUT_COLOR : PITCH_IN_PLAY_SAFE_COLOR;
+  }
   if (pitch.isBall) return PITCH_BALL_COLOR;
   if (pitch.isStrike) return PITCH_STRIKE_COLOR;
   return PITCH_NEUTRAL_COLOR;

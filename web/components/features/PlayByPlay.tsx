@@ -3,14 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
+import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { cn } from "@/lib/utils";
-import type { PlayByPlayEntry, PlayDetail } from "@/types/mlb-live";
+import {
+  formatGameScore,
+  formatOuts,
+  formatRunnerBases,
+} from "@/lib/mlb/situationFormat";
+import type { GameSituation, PlayByPlayEntry, PlayDetail } from "@/types/mlb-live";
 import { formatInningHalf } from "@/lib/utils";
 
 interface PlayByPlayProps {
   plays: PlayByPlayEntry[];
   awayAbbrev: string;
   homeAbbrev: string;
+  venueId?: number | null;
   className?: string;
 }
 
@@ -77,10 +84,48 @@ function eventAbbrev(event: string): string {
   return map[event] ?? event.slice(0, 3).toUpperCase();
 }
 
+function SituationMarker({
+  situation,
+  awayAbbrev,
+  homeAbbrev,
+}: {
+  situation: GameSituation;
+  awayAbbrev: string;
+  homeAbbrev: string;
+}) {
+  const runners = formatRunnerBases(situation.bases);
+
+  return (
+    <div className="flex items-center gap-2 border-t border-neutral-800/40 bg-neutral-900/40 px-3 py-1.5">
+      <BaseDiamond
+        onFirst={situation.onFirst}
+        onSecond={situation.onSecond}
+        onThird={situation.onThird}
+        size="tiny"
+        className="shrink-0"
+      />
+      <div className="min-w-0 flex-1 text-[11px] leading-snug text-neutral-500">
+        <span className="font-mono tabular-nums text-neutral-400">
+          {awayAbbrev} {formatGameScore(situation.awayScore, situation.homeScore)} {homeAbbrev}
+        </span>
+        <span className="mx-1.5 text-neutral-700">·</span>
+        <span>{formatOuts(situation.outs)}</span>
+        {runners && (
+          <>
+            <span className="mx-1.5 text-neutral-700">·</span>
+            <span>{runners}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PlayByPlay({
   plays,
   awayAbbrev,
   homeAbbrev,
+  venueId,
   className,
 }: PlayByPlayProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -149,40 +194,46 @@ export function PlayByPlay({
 
                     {isOpen &&
                       group.plays.map((play) => (
-                        <button
-                          key={play.atBatIndex}
-                          type="button"
-                          onClick={() => setSelectedPlay(play.detail)}
-                          className={cn(
-                            "w-full border-t border-neutral-800/50 px-3 py-2.5 text-left hover:bg-neutral-900/80",
-                            play.isScoringPlay && "border-l-2 border-l-amber-600/60",
-                          )}
-                        >
-                          <div className="mb-1 flex items-baseline justify-between gap-2">
-                            <div className="flex min-w-0 items-baseline gap-2">
-                              <span className="shrink-0 font-mono text-[11px] text-neutral-500">
-                                {eventAbbrev(play.event)}
-                              </span>
-                              <span className="truncate text-[13px] text-neutral-200">
-                                {play.batterName}
+                        <div key={play.atBatIndex}>
+                          <SituationMarker
+                            situation={play.situationBefore}
+                            awayAbbrev={awayAbbrev}
+                            homeAbbrev={homeAbbrev}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPlay(play.detail)}
+                            className={cn(
+                              "w-full border-t border-neutral-800/50 px-3 py-2.5 text-left hover:bg-neutral-900/80",
+                              play.isScoringPlay && "border-l-2 border-l-amber-600/60",
+                            )}
+                          >
+                            <div className="mb-1 flex items-baseline justify-between gap-2">
+                              <div className="flex min-w-0 items-baseline gap-2">
+                                <span className="shrink-0 font-mono text-[11px] text-neutral-500">
+                                  {eventAbbrev(play.event)}
+                                </span>
+                                <span className="truncate text-[13px] text-neutral-200">
+                                  {play.batterName}
+                                </span>
+                              </div>
+                              <span className="shrink-0 font-mono text-[11px] tabular-nums text-neutral-600">
+                                {formatBatterLine(play.batterHits, play.batterAtBats)}
                               </span>
                             </div>
-                            <span className="shrink-0 font-mono text-[11px] tabular-nums text-neutral-600">
-                              {formatBatterLine(play.batterHits, play.batterAtBats)}
-                            </span>
-                          </div>
-                          <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500">
-                            {play.description}
-                          </p>
-                          {(() => {
-                            const contact = compactContactLine(play.detail.hit);
-                            return contact ? (
-                              <p className="mt-0.5 font-mono text-[10px] text-neutral-600">
-                                {contact}
-                              </p>
-                            ) : null;
-                          })()}
-                        </button>
+                            <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500">
+                              {play.description}
+                            </p>
+                            {(() => {
+                              const contact = compactContactLine(play.detail.hit);
+                              return contact ? (
+                                <p className="mt-0.5 font-mono text-[10px] text-neutral-600">
+                                  {contact}
+                                </p>
+                              ) : null;
+                            })()}
+                          </button>
+                        </div>
                       ))}
                   </div>
                 );
@@ -193,7 +244,11 @@ export function PlayByPlay({
         </div>
       </div>
 
-      <PlayDetailDialog play={selectedPlay} onClose={() => setSelectedPlay(null)} />
+      <PlayDetailDialog
+        play={selectedPlay}
+        venueId={venueId}
+        onClose={() => setSelectedPlay(null)}
+      />
     </>
   );
 }

@@ -23,8 +23,8 @@ const SIZE_STYLES = {
   compact: {
     chart: "w-[120px]",
     chartStacked: "h-32",
-    dotR: 3.2,
-    dotFont: 3.2,
+    dotR: 2.2,
+    dotFont: 2.6,
     table: "text-[12px]",
     head: "text-[10px]",
     rowPy: "py-1",
@@ -33,8 +33,8 @@ const SIZE_STYLES = {
   default: {
     chart: "w-[140px]",
     chartStacked: "h-40",
-    dotR: 3.6,
-    dotFont: 3.4,
+    dotR: 2.6,
+    dotFont: 2.8,
     table: "text-[13px]",
     head: "text-[11px]",
     rowPy: "py-1.5",
@@ -42,9 +42,9 @@ const SIZE_STYLES = {
   },
   large: {
     chart: "w-[200px]",
-    chartStacked: "h-52",
-    dotR: 5.5,
-    dotFont: 4.8,
+    chartStacked: "min-h-[280px] flex-1",
+    dotR: 3.2,
+    dotFont: 3.2,
     table: "text-[16px]",
     head: "text-[13px]",
     rowPy: "py-2.5",
@@ -80,6 +80,13 @@ function StrikeZoneChart({
       aria-hidden
       preserveAspectRatio="xMidYMid meet"
     >
+      {/* Home plate */}
+      <path
+        d="M42 92 L50 98 L58 92 L58 88 L42 88 Z"
+        fill="#262626"
+        stroke="#525252"
+        strokeWidth="0.6"
+      />
       <rect
         x={zone.x}
         y={zone.y}
@@ -89,6 +96,28 @@ function StrikeZoneChart({
         stroke="#525252"
         strokeWidth="0.8"
       />
+      {[1, 2].map((i) => (
+        <line
+          key={`v${i}`}
+          x1={zone.x + (zone.width * i) / 3}
+          y1={zone.y}
+          x2={zone.x + (zone.width * i) / 3}
+          y2={zone.y + zone.height}
+          stroke="#333"
+          strokeWidth="0.4"
+        />
+      ))}
+      {[1, 2].map((i) => (
+        <line
+          key={`h${i}`}
+          x1={zone.x}
+          y1={zone.y + (zone.height * i) / 3}
+          x2={zone.x + zone.width}
+          y2={zone.y + (zone.height * i) / 3}
+          stroke="#333"
+          strokeWidth="0.4"
+        />
+      ))}
       {plotted.map((pitch) => {
         const dot = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
         const color = pitchResultColor(pitch);
@@ -218,9 +247,11 @@ export function PitchSequence({
   if (layout === "stacked") {
     return (
       <div className={cn("flex h-full min-h-0 flex-col", className)}>
-        <StrikeZoneChart pitches={pitches} size={resolvedSize} stacked />
+        <div className="flex min-h-[240px] flex-[3] flex-col">
+          <StrikeZoneChart pitches={pitches} size={resolvedSize} stacked />
+        </div>
 
-        <div ref={scrollRef} className="mt-3 min-h-0 flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="mt-3 min-h-0 flex-[2] overflow-y-auto">
           <PitchTable
             pitches={pitches}
             size={resolvedSize}

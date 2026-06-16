@@ -1,15 +1,49 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import {
+  FIELD_SEGMENT_ORDER,
+  FIELD_SEGMENT_STYLES,
+  GENERIC_FIELD_SEGMENTS,
+  GENERIC_TRANSFORM,
+  getBallparkByVenueId,
+  mapHitToSvg,
+} from "@/lib/mlb/ballparkPaths";
 import type { HitData } from "@/types/mlb-live";
 
 interface SprayChartProps {
   hit: HitData | null;
+  venueId?: number | null;
   className?: string;
 }
 
-/** Top-down field plot — MLB coordX/coordY in feet from home plate. */
-export function SprayChart({ hit, className }: SprayChartProps) {
+function FieldBackground({ venueId }: { venueId?: number | null }) {
+  const park = getBallparkByVenueId(venueId);
+  const segments = park?.segments ?? GENERIC_FIELD_SEGMENTS;
+
+  return (
+    <>
+      {FIELD_SEGMENT_ORDER.map((segment) => {
+        const d = segments[segment];
+        if (!d) return null;
+        const style = FIELD_SEGMENT_STYLES[segment] ?? FIELD_SEGMENT_STYLES.outfield_outer;
+        return (
+          <path
+            key={segment}
+            d={d}
+            fill={style.fill}
+            stroke={style.stroke}
+            strokeWidth={style.strokeWidth}
+            opacity={style.opacity}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** Top-down field plot — MLB coordX/coordY in MLBAM hc_x/hc_y space. */
+export function SprayChart({ hit, venueId, className }: SprayChartProps) {
   if (!hit) {
     return (
       <div
@@ -23,35 +57,29 @@ export function SprayChart({ hit, className }: SprayChartProps) {
     );
   }
 
-  // Field fan: home at bottom center. coordY = depth, coordX = horizontal spray.
-  const maxDepth = 420;
-  const maxWidth = 250;
-  const x = 50 + (hit.coordX / maxWidth) * 42;
-  const y = 92 - (hit.coordY / maxDepth) * 82;
+  const park = getBallparkByVenueId(venueId);
+  const transform = park?.transform ?? GENERIC_TRANSFORM;
+  const { x, y } = mapHitToSvg(hit.coordX, hit.coordY, transform);
+  const home = mapHitToSvg(125, 200, transform);
 
   return (
     <div className={cn("w-full max-w-[220px]", className)}>
       <svg viewBox="0 0 100 100" className="w-full border border-neutral-800 bg-[#1a2e1a]">
-        {/* Outfield arc */}
-        <path
-          d="M 8 92 Q 50 8 92 92 Z"
-          fill="#243524"
-          stroke="#3d5c3d"
-          strokeWidth="0.5"
-        />
-        {/* Infield diamond */}
-        <path
-          d="M 50 88 L 68 70 L 50 52 L 32 70 Z"
-          fill="#2a3f2a"
-          stroke="#4a6b4a"
-          strokeWidth="0.4"
-        />
-        {/* Landing point */}
+        <FieldBackground venueId={venueId} />
         <circle cx={x} cy={y} r="2.5" fill="#fbbf24" stroke="#fff" strokeWidth="0.5" />
-        <line x1="50" y1="88" x2={x} y2={y} stroke="#fbbf24" strokeWidth="0.4" opacity="0.5" />
+        <line
+          x1={home.x}
+          y1={home.y}
+          x2={x}
+          y2={y}
+          stroke="#fbbf24"
+          strokeWidth="0.4"
+          opacity="0.5"
+        />
       </svg>
       <p className="mt-1 text-center text-[10px] text-neutral-600">
         {hit.totalDistance > 0 ? `${Math.round(hit.totalDistance)} ft` : "In play"}
+        {park ? ` · ${park.venueName}` : ""}
       </p>
     </div>
   );
