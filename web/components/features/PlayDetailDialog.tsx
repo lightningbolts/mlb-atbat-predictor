@@ -1,9 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Dialog } from "@/components/ui/Dialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { SprayChart } from "@/components/features/SprayChart";
 import type { HitData, PlayDetail, PlayPitch } from "@/types/mlb-live";
+
+const BallTrajectory3D = dynamic(
+  () => import("@/components/features/BallTrajectory3D").then((m) => m.BallTrajectory3D),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[280px] items-center justify-center rounded border border-border bg-[#0f1a12] text-xs text-subtle">
+        Loading trajectory…
+      </div>
+    ),
+  },
+);
 
 interface PlayDetailDialogProps {
   play: PlayDetail | null;
@@ -144,6 +157,7 @@ function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | nul
           )}
         </div>
       </div>
+      <BallTrajectory3D hit={hit} venueId={venueId} className="mt-4" />
     </div>
   );
 }
