@@ -100,7 +100,7 @@ export function getDueUpBatters(
     if (isLineupPitcher(batter)) continue;
 
     dueUp.push({
-      order: lineupIndex + 1,
+      order: (lineupIndex % 9) + 1,
       playerId: batter.playerId,
       name: batter.name,
       positions: batter.positions,

@@ -20,6 +20,7 @@ export interface PlayPitch {
   isInPlay: boolean;
   isOut: boolean;
   isPitch: boolean;
+  hasPlateLocation?: boolean;
   strikeZoneTop: number;
   strikeZoneBottom: number;
   review?: PitchReview;

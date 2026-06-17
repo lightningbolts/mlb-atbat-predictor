@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import type { LiveGameState } from "@/types/mlb-live";
 
-export const BREAK_LINGER_MS = 3_500;
+export const BREAK_LINGER_MS = 2_000;
 
 function breakKey(state: LiveGameState): string {
   return `${state.inning}-${state.inningState.toLowerCase()}`;
@@ -50,7 +50,7 @@ function buildLingerState(
 }
 
 export interface BreakLingerResult {
-  /** State to render for scorebug / at-bat panel (may hold the finished AB briefly). */
+  /** State to render for the at-bat pitch panel (may hold the finished AB briefly). */
   atBatViewState: LiveGameState | null;
   /** True while the final at-bat is still on screen before due-up UI. */
   isLingering: boolean;
@@ -60,55 +60,48 @@ export interface BreakLingerResult {
 
 export function useBreakLinger(gameState: LiveGameState | null): BreakLingerResult {
   const lastActiveRef = useRef<LiveGameState | null>(null);
-  const lingeredBreakKeyRef = useRef<string | null>(null);
-  const [lingerState, setLingerState] = useState<LiveGameState | null>(null);
-  const [lingerUntil, setLingerUntil] = useState(0);
-  const [lingerExpired, setLingerExpired] = useState(true);
+  const activeBreakKeyRef = useRef<string | null>(null);
+  const lingerSnapshotRef = useRef<LiveGameState | null>(null);
+  const lingerStartedAtRef = useRef(0);
+  const [lingerTick, setLingerTick] = useState(0);
 
   const isBreak = gameState != null && isHalfInningBreak(gameState.inningState);
+  const currentBreakKey = isBreak && gameState ? breakKey(gameState) : null;
+
+  if (gameState && !isBreak) {
+    lastActiveRef.current = gameState;
+    activeBreakKeyRef.current = null;
+    lingerSnapshotRef.current = null;
+    lingerStartedAtRef.current = 0;
+  } else if (gameState && currentBreakKey && activeBreakKeyRef.current !== currentBreakKey) {
+    activeBreakKeyRef.current = currentBreakKey;
+    lingerSnapshotRef.current = buildLingerState(gameState, lastActiveRef.current);
+    lingerStartedAtRef.current = Date.now();
+  }
+
+  const isLingering =
+    currentBreakKey != null &&
+    lingerSnapshotRef.current != null &&
+    Date.now() - lingerStartedAtRef.current < BREAK_LINGER_MS;
 
   useEffect(() => {
-    if (!gameState) return;
+    if (!isLingering) return;
 
-    if (!isHalfInningBreak(gameState.inningState)) {
-      lastActiveRef.current = gameState;
-      lingeredBreakKeyRef.current = null;
-      setLingerState(null);
-      setLingerUntil(0);
-      setLingerExpired(true);
-      return;
-    }
-
-    const key = breakKey(gameState);
-    if (lingeredBreakKeyRef.current === key) return;
-
-    lingeredBreakKeyRef.current = key;
-    setLingerState(buildLingerState(gameState, lastActiveRef.current));
-    setLingerUntil(Date.now() + BREAK_LINGER_MS);
-    setLingerExpired(false);
-  }, [gameState]);
+    const remaining = BREAK_LINGER_MS - (Date.now() - lingerStartedAtRef.current);
+    const id = window.setTimeout(() => setLingerTick((tick) => tick + 1), Math.max(0, remaining));
+    return () => window.clearTimeout(id);
+  }, [isLingering, currentBreakKey, lingerTick]);
 
   useEffect(() => {
-    setLingerState(null);
-    setLingerUntil(0);
-    setLingerExpired(true);
     lastActiveRef.current = null;
-    lingeredBreakKeyRef.current = null;
+    activeBreakKeyRef.current = null;
+    lingerSnapshotRef.current = null;
+    lingerStartedAtRef.current = 0;
   }, [gameState?.gamePk]);
 
-  useEffect(() => {
-    if (lingerExpired || lingerUntil <= Date.now()) return;
-
-    const id = window.setTimeout(() => {
-      setLingerExpired(true);
-    }, lingerUntil - Date.now());
-
-    return () => window.clearTimeout(id);
-  }, [lingerUntil, lingerExpired]);
-
-  const isLingering = isBreak && !lingerExpired && lingerState != null;
-  const showBreakUI = isBreak && lingerExpired;
-  const atBatViewState = isLingering ? lingerState : gameState;
+  const showBreakUI = isBreak && !isLingering;
+  const atBatViewState =
+    isLingering && lingerSnapshotRef.current ? lingerSnapshotRef.current : gameState;
 
   return { atBatViewState, isLingering, showBreakUI };
 }

@@ -333,11 +333,11 @@ function inferInPlayOut(
 }
 
 function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch | null {
-  if (!event.isPitch || !event.pitchData?.coordinates) return null;
+  if (!event.isPitch) return null;
 
-  const coords = event.pitchData.coordinates;
-  if (typeof coords.pX !== "number" || typeof coords.pZ !== "number") return null;
-  if (typeof event.pitchData.startSpeed !== "number") return null;
+  const coords = event.pitchData?.coordinates;
+  const hasPlateLocation =
+    typeof coords?.pX === "number" && typeof coords?.pZ === "number";
 
   const description = outcomeLabel(event);
 
@@ -349,24 +349,25 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     callCode: callCode(event),
     balls: event.count?.balls ?? 0,
     strikes: event.count?.strikes ?? 0,
-    startSpeed: event.pitchData.startSpeed,
-    plateX: coords.pX,
-    plateZ: coords.pZ,
+    startSpeed: event.pitchData?.startSpeed ?? 0,
+    plateX: hasPlateLocation ? coords!.pX! : 0,
+    plateZ: hasPlateLocation ? coords!.pZ! : 0,
     isStrike: Boolean(event.details?.isStrike),
     isBall: Boolean(event.details?.isBall),
     isInPlay: Boolean(event.details?.isInPlay),
     isOut: inferInPlayOut(event.details?.isOut, description),
     isPitch: true,
-    strikeZoneTop: event.pitchData.strikeZoneTop ?? 3.5,
-    strikeZoneBottom: event.pitchData.strikeZoneBottom ?? 1.5,
+    hasPlateLocation,
+    strikeZoneTop: event.pitchData?.strikeZoneTop ?? 3.5,
+    strikeZoneBottom: event.pitchData?.strikeZoneBottom ?? 1.5,
     review: parseReview(event),
-    endSpeed: event.pitchData.endSpeed,
-    extension: event.pitchData.extension,
-    plateTime: event.pitchData.plateTime,
-    zone: event.pitchData.zone,
-    spinRate: event.pitchData.breaks?.spinRate,
-    breakHorizontal: event.pitchData.breaks?.breakHorizontal,
-    breakVerticalInduced: event.pitchData.breaks?.breakVerticalInduced,
+    endSpeed: event.pitchData?.endSpeed,
+    extension: event.pitchData?.extension,
+    plateTime: event.pitchData?.plateTime,
+    zone: event.pitchData?.zone,
+    spinRate: event.pitchData?.breaks?.spinRate,
+    breakHorizontal: event.pitchData?.breaks?.breakHorizontal,
+    breakVerticalInduced: event.pitchData?.breaks?.breakVerticalInduced,
   };
 }
 

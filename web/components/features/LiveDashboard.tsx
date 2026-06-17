@@ -96,9 +96,12 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
         <>
       <Scorebug
         gameState={
-          atBatViewState
-            ? { ...atBatViewState, onFirst, onSecond, onThird }
+          gameState
+            ? { ...gameState, onFirst, onSecond, onThird }
             : null
+        }
+        dueUpBatters={
+          gameState && isHalfInningBreak(gameState.inningState) ? dueUp?.batters : undefined
         }
       />
 

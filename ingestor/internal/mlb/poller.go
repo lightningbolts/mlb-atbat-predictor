@@ -93,21 +93,27 @@ func (w *Worker) pollOnce(ctx context.Context, gamePK int, log *slog.Logger) err
 		return nil
 	}
 
-	if !w.tracker.HasChanged(state) {
+	pending := w.tracker.PendingStates(state, feed.LiveData.Plays.CurrentPlay.PlayEvents)
+	if len(pending) == 0 {
 		log.Debug("no state change", "fingerprint", state.Fingerprint())
 		return nil
 	}
 
-	log.Info("state changed",
-		"fingerprint", state.Fingerprint(),
-		"batter", state.BatterName,
-		"pitcher", state.PitcherName,
-		"count", fmt.Sprintf("%d-%d", state.Balls, state.Strikes),
-		"inning", state.Inning,
-	)
+	for _, next := range pending {
+		log.Info("state changed",
+			"fingerprint", next.Fingerprint(),
+			"batter", next.BatterName,
+			"pitcher", next.PitcherName,
+			"count", fmt.Sprintf("%d-%d", next.Balls, next.Strikes),
+			"inning", next.Inning,
+			"pitch", next.LastPlayEvent,
+		)
 
-	if err := w.onChange(ctx, state); err != nil {
-		return fmt.Errorf("on state change: %w", err)
+		if err := w.onChange(ctx, next); err != nil {
+			return fmt.Errorf("on state change: %w", err)
+		}
+
+		w.tracker.Commit(next)
 	}
 
 	return nil

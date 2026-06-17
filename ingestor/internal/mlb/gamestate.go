@@ -128,5 +128,10 @@ func boolToInt(b bool) int {
 
 // IsLive reports whether the game is actively in progress.
 func (s GameState) IsLive() bool {
-	return strings.EqualFold(s.GameStatus, "Live")
+	switch strings.ToLower(strings.TrimSpace(s.GameStatus)) {
+	case "live", "in progress":
+		return true
+	default:
+		return false
+	}
 }

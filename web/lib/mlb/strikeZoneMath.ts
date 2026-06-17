@@ -1,11 +1,11 @@
 import type { PlayPitch } from "@/types/mlb-live";
 
-export const VIEW_WIDTH_FT = 3.2;
-export const PADDING_FT = 0.35;
+export const VIEW_WIDTH_FT = 4.2;
+export const PADDING_FT = 0.55;
 /** Statcast pZ origin — ground at the center of home plate. */
 export const GROUND_Z = 0;
 /** Extra feet below ground so pitches in the dirt stay in frame. */
-export const DIRT_PADDING_FT = 0.25;
+export const DIRT_PADDING_FT = 0.5;
 /** Bottom band for home plate and pitches below the zone (Gameday-style). */
 export const PLATE_BAND_PCT = 18;
 export const ZONE_BAND_PCT = 100 - PLATE_BAND_PCT;

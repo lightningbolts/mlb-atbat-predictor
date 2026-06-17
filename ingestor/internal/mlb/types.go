@@ -100,12 +100,20 @@ type RunnerMovement struct {
 	End   *string `json:"end"`   // base occupied after the event
 }
 
+// EventCount is balls/strikes/outs after a play event.
+type EventCount struct {
+	Balls   int `json:"balls"`
+	Strikes int `json:"strikes"`
+	Outs    int `json:"outs"`
+}
+
 // PlayEvent is a single pitch or action within the current at-bat.
 type PlayEvent struct {
-	PlayID    string     `json:"playId"`
-	IsPitch   bool       `json:"isPitch"`
-	PitchData *PitchData `json:"pitchData,omitempty"`
-	Index     int        `json:"index"`
+	PlayID    string      `json:"playId"`
+	IsPitch   bool        `json:"isPitch"`
+	PitchData *PitchData  `json:"pitchData,omitempty"`
+	Count     *EventCount `json:"count,omitempty"`
+	Index     int         `json:"index"`
 }
 
 // PitchData holds Statcast-style measurements for a pitch.

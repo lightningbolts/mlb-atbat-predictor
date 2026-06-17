@@ -47,7 +47,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		MLBAPIBaseURL:      envOrDefault("MLB_API_BASE_URL", "https://statsapi.mlb.com/api/v1.1"),
-		PollInterval:       durationFromEnv("POLL_INTERVAL", 3*time.Second),
+		PollInterval:       durationFromEnv("POLL_INTERVAL", 1*time.Second),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
 		HTTPClientTimeout:  durationFromEnv("HTTP_CLIENT_TIMEOUT", 10*time.Second),
 		HTTPMaxRetries:     intFromEnv("HTTP_MAX_RETRIES", 3),

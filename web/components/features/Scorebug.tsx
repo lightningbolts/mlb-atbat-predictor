@@ -1,12 +1,13 @@
 "use client";
 
 import { BaseDiamond } from "@/components/features/BaseDiamond";
-import { isHalfInningBreak, lineupSlotAfter } from "@/lib/mlb/lineup";
+import { isHalfInningBreak, type DueUpBatter } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
 import type { LiveGameState } from "@/types/mlb-live";
 
 interface ScorebugProps {
   gameState: LiveGameState | null;
+  dueUpBatters?: DueUpBatter[];
   className?: string;
 }
 
@@ -17,7 +18,7 @@ function inningLabel(inning: number, halfInning: string): string {
 }
 
 /** Fox-style broadcast scorebug with score, inning, count, outs, bases, matchup. */
-export function Scorebug({ gameState, className }: ScorebugProps) {
+export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) {
   if (!gameState) {
     return (
       <div className={cn("h-14 border-b border-border bg-scorebug", className)}>
@@ -41,7 +42,6 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
     pitcherName,
     onDeckName,
     inHoleName,
-    battingOrderSlot,
     onFirst,
     onSecond,
     onThird,
@@ -124,20 +124,26 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
               Due up
             </span>
             <span className="truncate text-[15px] font-medium">
-              {battingOrderSlot != null ? `${battingOrderSlot}. ` : ""}
-              {batterName}
+              {dueUpBatters?.[0]
+                ? `${dueUpBatters[0].order}. ${dueUpBatters[0].name}`
+                : batterName}
             </span>
             <span className="truncate text-[12px] text-scorebug-muted">
-              {onDeckName && onDeckName !== "—" ? (
+              {dueUpBatters?.[1] ? (
                 <>
-                  {battingOrderSlot != null ? `${lineupSlotAfter(battingOrderSlot, 1)}. ` : ""}
-                  {onDeckName}
+                  {dueUpBatters[1].order}. {dueUpBatters[1].name}
                 </>
+              ) : onDeckName && onDeckName !== "—" ? (
+                onDeckName
               ) : null}
-              {inHoleName && inHoleName !== "—" ? (
+              {dueUpBatters?.[2] ? (
                 <>
-                  {onDeckName && onDeckName !== "—" ? " · " : ""}
-                  {battingOrderSlot != null ? `${lineupSlotAfter(battingOrderSlot, 2)}. ` : ""}
+                  {dueUpBatters[1] || (onDeckName && onDeckName !== "—") ? " · " : ""}
+                  {dueUpBatters[2].order}. {dueUpBatters[2].name}
+                </>
+              ) : inHoleName && inHoleName !== "—" ? (
+                <>
+                  {(dueUpBatters?.[1] || (onDeckName && onDeckName !== "—")) ? " · " : ""}
                   {inHoleName}
                 </>
               ) : null}

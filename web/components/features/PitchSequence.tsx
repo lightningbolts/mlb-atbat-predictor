@@ -95,7 +95,7 @@ function StrikeZoneChart({
   entranceFromIndex?: number;
 }) {
   const styles = SIZE_STYLES[size];
-  const plotted = pitches.filter((p) => p.isPitch);
+  const plotted = pitches.filter((p) => p.isPitch && p.hasPlateLocation !== false);
   const szTop = plotted[plotted.length - 1]?.strikeZoneTop ?? 3.5;
   const szBottom = plotted[plotted.length - 1]?.strikeZoneBottom ?? 1.5;
   const zone = zoneRectPercent(szTop, szBottom);
@@ -221,10 +221,13 @@ function PitchFeed({
             )}
             <div className="min-w-0 flex-1">
               <p className="font-medium leading-snug text-foreground">{p.callDescription}</p>
-              {p.isPitch && (
+              {p.isPitch && p.startSpeed > 0 && (
                 <p className="mt-0.5 text-muted">
                   {p.startSpeed.toFixed(1)} mph {p.typeDescription}
                 </p>
+              )}
+              {p.isPitch && p.startSpeed <= 0 && (
+                <p className="mt-0.5 text-muted">{p.typeDescription}</p>
               )}
               {p.review && (
                 <p className="mt-0.5 text-xs font-medium text-amber-500">{reviewBadge(p.review)}</p>

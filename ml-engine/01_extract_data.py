@@ -1,10 +1,14 @@
 import os
+from pathlib import Path
+
 import pandas as pd
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from supabase import Client, create_client
 
-# Load Environment Variables
+from constants import OUTCOME_KEYS
+
 load_dotenv()
+
 url: str = os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
 
@@ -16,124 +20,300 @@ if not url or not key:
 
 supabase: Client = create_client(url, key)
 
-OUTCOME_KEYS = [
-    'strikeout',
-    'walk',
-    'single',
-    'double',
-    'triple',
-    'home_run',
-    'field_out'
-]
+DATA_DIR = Path(__file__).parent / "data"
+AT_BATS_PATH = DATA_DIR / "at_bats.parquet"
+AT_BAT_PITCHES_PATH = DATA_DIR / "at_bat_pitches.parquet"
+PAGE_SIZE = 1000
+GAME_STATE_BATCH = 25
 
-def map_outcome(event_type):
-    """Maps MLB at-bat result strings to our 4 target categories."""
+
+def normalize_count(balls: int, strikes: int) -> tuple[int, int]:
+    """Clamp to valid pre-pitch counts (MLB API sometimes reports post-pitch on terminal events)."""
+    return min(int(balls or 0), 3), min(int(strikes or 0), 2)
+
+
+def map_outcome(event_type: str | None) -> str | None:
+    """Map MLB play event string to one of OUTCOME_KEYS, or None to drop."""
     if not event_type:
-        return 'Other'
+        return None
 
-    normalized = event_type.lower().replace(' ', '_').replace('-', '_')
+    normalized = event_type.lower().replace(" ", "_").replace("-", "_")
 
-    if normalized in ['strikeout', 'strikeout_double_play']:
-        return 'Strikeout'
-    elif normalized in ['walk', 'intentional_walk', 'intent_walk', 'hit_by_pitch']:
-        return 'Walk'
-    elif normalized in ['single', 'double', 'triple', 'home_run']:
-        return 'Hit'
-    elif normalized in [
-        'field_out', 'force_out', 'forceout', 'grounded_into_dp',
-        'fly_out', 'flyout', 'line_out', 'lineout', 'pop_out',
-        'groundout', 'sac_fly', 'sacrifice_fly', 'sac_bunt',
-        'sacrifice_bunt', 'bunt_groundout', 'double_play',
-        'fielders_choice_out', 'fielders_choice', 'field_error',
-    ]:
-        return 'Out_In_Play'
+    direct = {
+        "strikeout": "strikeout",
+        "strikeout_double_play": "strikeout",
+        "walk": "walk",
+        "intentional_walk": "walk",
+        "intent_walk": "walk",
+        "hit_by_pitch": "walk",
+        "single": "single",
+        "double": "double",
+        "triple": "triple",
+        "home_run": "home_run",
+        "field_out": "field_out",
+        "force_out": "field_out",
+        "forceout": "field_out",
+        "grounded_into_dp": "field_out",
+        "fly_out": "field_out",
+        "flyout": "field_out",
+        "line_out": "field_out",
+        "lineout": "field_out",
+        "pop_out": "field_out",
+        "groundout": "field_out",
+        "sac_fly": "field_out",
+        "sacrifice_fly": "field_out",
+        "sac_bunt": "field_out",
+        "sacrifice_bunt": "field_out",
+        "bunt_groundout": "field_out",
+        "double_play": "field_out",
+        "fielders_choice_out": "field_out",
+        "fielders_choice": "field_out",
+        "field_error": "field_out",
+    }
 
-    return 'Other'
+    return direct.get(normalized)
 
-def extract_at_bats_from_state(game_pk, state):
-    """Flatten parsed LiveGameState JSON (stored by sync-game-feeds) into rows."""
+
+def _situation_fields(play: dict, situation: dict) -> dict:
+    return {
+        "inning": play.get("inning") or play.get("detail", {}).get("inning"),
+        "half_inning": play.get("halfInning") or play.get("detail", {}).get("halfInning"),
+        "outs": situation.get("outs", 0),
+        "on_first": bool(play.get("onFirst") or situation.get("onFirst")),
+        "on_second": bool(play.get("onSecond") or situation.get("onSecond")),
+        "on_third": bool(play.get("onThird") or situation.get("onThird")),
+        "away_score": situation.get("awayScore", 0),
+        "home_score": situation.get("homeScore", 0),
+    }
+
+
+def extract_at_bats_from_state(
+    game_pk: int,
+    game_date: str,
+    venue_id: int | None,
+    state: dict,
+) -> list[dict]:
+    """One row per completed at-bat (terminal pitch count)."""
     rows = []
 
-    for play in state.get('plays', []):
-        detail = play.get('detail') or {}
-        pitcher_id = detail.get('pitcherId')
-        batter_id = play.get('batterId') or detail.get('batterId')
-        inning = play.get('inning') or detail.get('inning')
+    for play in state.get("plays", []):
+        detail = play.get("detail") or {}
+        situation = play.get("situationBefore") or {}
 
-        pitches = [p for p in detail.get('pitches', []) if p.get('isPitch')]
+        pitches = [p for p in detail.get("pitches", []) if p.get("isPitch")]
         if not pitches:
             continue
 
+        outcome = map_outcome(play.get("event") or detail.get("event"))
+        if outcome is None:
+            continue
+
         last_pitch = pitches[-1]
-        situation = play.get('situationBefore') or {}
+        sit = _situation_fields(play, situation)
+        balls, strikes = normalize_count(last_pitch.get("balls", 0), last_pitch.get("strikes", 0))
 
         rows.append({
-            'game_pk': game_pk,
-            'pitcher_id': pitcher_id,
-            'batter_id': batter_id,
-            'inning': inning,
-            'balls': last_pitch.get('balls', 0),
-            'strikes': last_pitch.get('strikes', 0),
-            'outs': situation.get('outs', 0),
-            'outcome_label': map_outcome(play.get('event') or detail.get('event')),
+            "game_pk": game_pk,
+            "game_date": game_date,
+            "venue_id": venue_id,
+            "batter_id": play.get("batterId") or detail.get("batterId"),
+            "pitcher_id": detail.get("pitcherId"),
+            **sit,
+            "balls": balls,
+            "strikes": strikes,
+            "pitch_count_in_ab": len(pitches),
+            "is_final_pitch": True,
+            "last_pitch_speed": last_pitch.get("startSpeed"),
+            "last_pitch_type": last_pitch.get("typeCode"),
+            "outcome_label": outcome,
         })
 
     return rows
 
-def fetch_ml_data():
-    print("Fetching game JSONs from Supabase...")
-    
-    # Query the games table where we successfully synced the game_state JSON
-    # Grabbing 100 games to start.
-    response = supabase.table("games").select("game_pk, game_state").not_.is_("game_state", "null").limit(100).execute()
-    
-    print(f"Retrieved {len(response.data)} games. Flattening JSON into pitches...")
-    
-    all_pitches = []
-    
-    # Loop through every game
-    for game in response.data:
-        game_pk = game['game_pk']
-        state = game['game_state']
-        
-        try:
-            all_pitches.extend(extract_at_bats_from_state(game_pk, state))
-        except Exception as e:
-            print(f"Skipping game {game_pk} due to parsing error: {e}")
+
+def extract_pitch_snapshots_from_state(
+    game_pk: int,
+    game_date: str,
+    venue_id: int | None,
+    state: dict,
+) -> list[dict]:
+    """One row per pitch; label is the final at-bat outcome."""
+    rows = []
+
+    for play in state.get("plays", []):
+        detail = play.get("detail") or {}
+        situation = play.get("situationBefore") or {}
+
+        outcome = map_outcome(play.get("event") or detail.get("event"))
+        if outcome is None:
             continue
 
-    if not all_pitches:
-        print("No at-bats parsed from game_state.plays.")
-        empty = pd.DataFrame(columns=[
-            'game_pk', 'pitcher_id', 'batter_id', 'inning',
-            'balls', 'strikes', 'outs', 'outcome_label',
-        ])
-        return empty[['inning', 'outs', 'balls', 'strikes']], empty['outcome_label'], empty
+        pitches = [p for p in detail.get("pitches", []) if p.get("isPitch")]
+        if not pitches:
+            continue
 
-    # Convert the flat list of dictionaries into a Pandas DataFrame
-    df = pd.DataFrame(all_pitches)
-    
-    # Clean the Data — one row per completed at-bat
-    df = df[df['outcome_label'] != 'Other']
-    df = df.dropna()
-    
-    print(f"Successfully flattened and cleaned {len(df)} at-bat outcomes!")
-    
-    # Split into Features (X) and Target (Y)
-    features = ['inning', 'outs', 'balls', 'strikes']
-    X = df[features]
-    Y = df['outcome_label']
-    
-    return X, Y, df
+        sit = _situation_fields(play, situation)
+
+        for i, pitch in enumerate(pitches):
+            balls, strikes = normalize_count(pitch.get("balls", 0), pitch.get("strikes", 0))
+            rows.append({
+                "game_pk": game_pk,
+                "game_date": game_date,
+                "venue_id": venue_id,
+                "batter_id": play.get("batterId") or detail.get("batterId"),
+                "pitcher_id": detail.get("pitcherId"),
+                **sit,
+                "balls": balls,
+                "strikes": strikes,
+                "pitch_count_in_ab": i + 1,
+                "is_final_pitch": i == len(pitches) - 1,
+                "last_pitch_speed": pitch.get("startSpeed"),
+                "last_pitch_type": pitch.get("typeCode"),
+                "outcome_label": outcome,
+            })
+
+    return rows
+
+
+def enrich_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["score_diff"] = df["home_score"] - df["away_score"]
+    df["runners_code"] = (
+        df["on_first"].astype(int) * 1
+        + df["on_second"].astype(int) * 2
+        + df["on_third"].astype(int) * 4
+    )
+    df["runners_on"] = df["on_first"] | df["on_second"] | df["on_third"]
+    df["half_inning_bottom"] = (df["half_inning"] == "bottom").astype(int)
+    return df
+
+
+def validate_dataset(df: pd.DataFrame) -> None:
+    if df.empty:
+        return
+
+    unknown = set(df["outcome_label"].unique()) - set(OUTCOME_KEYS)
+    if unknown:
+        raise ValueError(f"Unknown outcome labels: {unknown}")
+
+    if not df["balls"].between(0, 3).all():
+        raise ValueError("Invalid balls count in dataset")
+    if not df["strikes"].between(0, 2).all():
+        raise ValueError("Invalid strikes count in dataset")
+    if not df["outs"].between(0, 2).all():
+        raise ValueError("Invalid outs count in dataset")
+
+
+def fetch_game_index(client: Client) -> list[dict]:
+    """Lightweight listing of games that have synced feeds."""
+    rows: list[dict] = []
+    offset = 0
+
+    while True:
+        response = (
+            client.table("games")
+            .select("game_pk, game_date, venue_id")
+            .not_.is_("game_state", "null")
+            .order("game_date")
+            .range(offset, offset + PAGE_SIZE - 1)
+            .execute()
+        )
+        batch = response.data or []
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+
+    return rows
+
+
+def fetch_game_states(client: Client, game_pks: list[int]) -> dict[int, dict]:
+    """Fetch game_state JSON for a batch of games."""
+    response = (
+        client.table("games")
+        .select("game_pk, game_state")
+        .in_("game_pk", game_pks)
+        .execute()
+    )
+    return {row["game_pk"]: row["game_state"] for row in (response.data or [])}
+
+
+def fetch_all_games_with_state(client: Client) -> list[dict]:
+    index = fetch_game_index(client)
+    games: list[dict] = []
+
+    for start in range(0, len(index), GAME_STATE_BATCH):
+        batch = index[start : start + GAME_STATE_BATCH]
+        game_pks = [row["game_pk"] for row in batch]
+        states = fetch_game_states(client, game_pks)
+
+        for row in batch:
+            state = states.get(row["game_pk"])
+            if state is None:
+                continue
+            games.append({**row, "game_state": state})
+
+        loaded = min(start + GAME_STATE_BATCH, len(index))
+        print(f"  Loaded game_state for {loaded}/{len(index)} games")
+
+    return games
+
+
+def extract_datasets(client: Client) -> tuple[pd.DataFrame, pd.DataFrame]:
+    print("Fetching game JSONs from Supabase...")
+    games = fetch_all_games_with_state(client)
+    print(f"Retrieved {len(games)} games. Flattening play-by-play...")
+
+    at_bat_rows: list[dict] = []
+    pitch_rows: list[dict] = []
+
+    for game in games:
+        game_pk = game["game_pk"]
+        state = game["game_state"]
+        game_date = game["game_date"]
+        venue_id = game.get("venue_id")
+
+        try:
+            at_bat_rows.extend(
+                extract_at_bats_from_state(game_pk, game_date, venue_id, state)
+            )
+            pitch_rows.extend(
+                extract_pitch_snapshots_from_state(game_pk, game_date, venue_id, state)
+            )
+        except Exception as e:
+            print(f"Skipping game {game_pk} due to parsing error: {e}")
+
+    at_bats_df = enrich_dataframe(pd.DataFrame(at_bat_rows))
+    pitches_df = enrich_dataframe(pd.DataFrame(pitch_rows))
+
+    validate_dataset(at_bats_df)
+    validate_dataset(pitches_df)
+
+    return at_bats_df, pitches_df
+
+
+def save_datasets(at_bats_df: pd.DataFrame, pitches_df: pd.DataFrame) -> tuple[Path, Path]:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    at_bats_df.to_parquet(AT_BATS_PATH, index=False)
+    pitches_df.to_parquet(AT_BAT_PITCHES_PATH, index=False)
+    return AT_BATS_PATH, AT_BAT_PITCHES_PATH
+
 
 if __name__ == "__main__":
-    X, Y, raw_df = fetch_ml_data()
-    
-    if len(raw_df) > 0:
-        print("\nFeature Matrix (X) Sample:")
-        print(X.head())
-        
-        print("\nTarget Outcomes (Y) Distribution:")
-        print(Y.value_counts(normalize=True))
-    else:
-        print("No valid at-bats found. Check JSON key paths.")
+    at_bats_df, pitches_df = extract_datasets(supabase)
+
+    print(f"\nTerminal at-bats: {len(at_bats_df)}")
+    print(f"Per-pitch snapshots: {len(pitches_df)}")
+
+    if len(at_bats_df) > 0:
+        print("\nAt-bat outcome distribution:")
+        print(at_bats_df["outcome_label"].value_counts(normalize=True))
+
+        print("\nPer-game at-bat counts:")
+        print(at_bats_df.groupby("game_pk").size().describe())
+
+    at_bats_path, pitches_path = save_datasets(at_bats_df, pitches_df)
+    print(f"\nWrote {at_bats_path}")
+    print(f"Wrote {pitches_path}")
