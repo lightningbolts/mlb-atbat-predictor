@@ -1,6 +1,7 @@
 "use client";
 
 import { BaseDiamond } from "@/components/features/BaseDiamond";
+import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
 import type { LiveGameState } from "@/types/mlb-live";
 
@@ -32,16 +33,20 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
     homeRuns,
     inning,
     inningHalf,
+    inningState,
     balls,
     strikes,
     outs,
     batterName,
     pitcherName,
+    onDeckName,
+    inHoleName,
     onFirst,
     onSecond,
     onThird,
   } = gameState;
 
+  const isBreak = isHalfInningBreak(inningState);
   const safeOuts = Math.min(3, Math.max(0, outs));
 
   return (
@@ -73,13 +78,13 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-[9px] font-semibold text-green-600 dark:text-green-500">B</span>
           <span className="flex h-7 w-7 items-center justify-center rounded bg-green-600/15 font-mono text-lg font-bold tabular-nums text-green-700 dark:bg-green-600/20 dark:text-green-400">
-            {balls}
+            {isBreak ? "–" : balls}
           </span>
         </div>
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-[9px] font-semibold text-red-600 dark:text-red-500">S</span>
           <span className="flex h-7 w-7 items-center justify-center rounded bg-red-600/15 font-mono text-lg font-bold tabular-nums text-red-700 dark:bg-red-600/20 dark:text-red-400">
-            {strikes}
+            {isBreak ? "–" : strikes}
           </span>
         </div>
       </div>
@@ -112,10 +117,25 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center px-4">
-        <span className="truncate text-[15px] font-medium">{batterName}</span>
-        <span className="truncate text-[12px] text-scorebug-muted">
-          vs <span className="text-secondary">{pitcherName}</span>
-        </span>
+        {isBreak ? (
+          <>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-scorebug-muted">
+              Due up
+            </span>
+            <span className="truncate text-[15px] font-medium">{batterName}</span>
+            <span className="truncate text-[12px] text-scorebug-muted">
+              {onDeckName}
+              {inHoleName && inHoleName !== "—" ? ` · ${inHoleName}` : ""}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="truncate text-[15px] font-medium">{batterName}</span>
+            <span className="truncate text-[12px] text-scorebug-muted">
+              vs <span className="text-secondary">{pitcherName}</span>
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

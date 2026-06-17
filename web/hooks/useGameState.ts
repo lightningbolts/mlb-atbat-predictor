@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { LiveGameState } from "@/types/mlb-live";
 
+const LIVE_POLL_MS = 1_000;
+
 export interface UseGameStateResult {
   gameState: LiveGameState | null;
   isLoading: boolean;
@@ -65,7 +67,7 @@ export function useGameState(gamePk: number, options?: { poll?: boolean }): UseG
 
     const pollId = window.setInterval(() => {
       void fetchState();
-    }, 3_000);
+    }, LIVE_POLL_MS);
 
     return () => window.clearInterval(pollId);
   }, [gamePk, fetchState, shouldPoll]);

@@ -8,7 +8,9 @@ import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherReco
 import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
+import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
+import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { GameSidebar } from "@/components/features/GameSidebar";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
@@ -16,8 +18,10 @@ import { Scorebug } from "@/components/features/Scorebug";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
+import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
+import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
 import { DEFAULT_OUTCOME_PROBABILITIES } from "@/types/database";
 import { LIVE_GAME_STATUSES, type ActiveGame } from "@/types/mlb";
@@ -40,6 +44,10 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
     games.find((g) => g.gamePk === selectedGamePk) ?? games[0];
 
   const { gameState, boxScore, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
+  const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal } = useLiveGameOverlays(
+    gameState,
+    boxScore,
+  );
   const { latestPrediction, isLoading: isPredictionsLoading, error, connectionStatus } =
     useLivePredictions(selectedGamePk);
 
@@ -63,6 +71,11 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   );
 
   const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && !latestPrediction;
+  const isBreak = gameState != null && isHalfInningBreak(gameState.inningState);
+  const showBatterHighlights =
+    gameState != null &&
+    gameState.gameStatus === "Live" &&
+    !isHalfInningBreak(gameState.inningState);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -70,7 +83,13 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
       <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "box" ? (
-        <BoxScoreView boxScore={boxScore} isLoading={isFeedLoading} />
+        <BoxScoreView
+          boxScore={boxScore}
+          isLoading={isFeedLoading}
+          atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
+          onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
+          offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
+        />
       ) : (
         <>
       <Scorebug
@@ -122,8 +141,8 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
-                <Panel title="Current at-bat" className="min-h-[380px] flex-[3]">
-                  {gameState && (
+                <Panel title={isBreak ? "Due up" : "Current at-bat"} className="min-h-[380px] flex-[3]">
+                  {gameState && !isBreak && (
                     <>
                       <BatterVsPitcherRecord
                         batterName={gameState.batterName}
@@ -140,7 +159,27 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                       )}
                     </>
                   )}
-                  {(gameState?.atBatPitches.length ?? 0) === 0 ? (
+                  {isBreak && gameState ? (
+                    <ul className="space-y-2">
+                      {[
+                        { label: "1", name: gameState.batterName },
+                        { label: "2", name: gameState.onDeckName },
+                        { label: "3", name: gameState.inHoleName },
+                      ]
+                        .filter((slot) => slot.name && slot.name !== "—")
+                        .map((slot) => (
+                          <li
+                            key={slot.label}
+                            className="flex items-center gap-3 border border-border bg-surface-elevated px-3 py-2.5"
+                          >
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-overlay font-mono text-xs font-semibold tabular-nums text-muted">
+                              {slot.label}
+                            </span>
+                            <span className="text-sm font-medium text-foreground">{slot.name}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  ) : (gameState?.atBatPitches.length ?? 0) === 0 ? (
                     <p className="text-sm text-subtle">Waiting for first pitch…</p>
                   ) : (
                     <PitchSequence
@@ -175,6 +214,14 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
       </div>
         </>
       )}
+
+      <DueUpDialog context={dueUp} open={showDueUp} onClose={dismissDueUp} />
+      <GameFinalDialog
+        gameState={gameState}
+        boxScore={boxScore}
+        open={showFinal}
+        onClose={dismissFinal}
+      />
     </div>
   );
 }

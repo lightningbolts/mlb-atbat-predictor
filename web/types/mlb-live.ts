@@ -149,10 +149,17 @@ export interface LiveGameState {
   homeRuns: number;
   batterId: number | null;
   batterName: string;
+  onDeckId: number | null;
+  onDeckName: string;
+  inHoleId: number | null;
+  inHoleName: string;
+  offenseTeamId: number | null;
+  battingOrderSlot: number | null;
   pitcherId: number | null;
   pitcherName: string;
   inning: number;
   inningHalf: string;
+  inningState: string;
   balls: number;
   strikes: number;
   outs: number;
@@ -265,6 +272,12 @@ export interface MLBLiveFeedResponse {
         home: { runs?: number };
       };
       offense?: {
+        batter?: { id?: number; fullName?: string };
+        onDeck?: { id?: number; fullName?: string };
+        inHole?: { id?: number; fullName?: string };
+        pitcher?: { id?: number; fullName?: string };
+        battingOrder?: number;
+        team?: { id?: number; name?: string };
         first?: { id: number } | null;
         second?: { id: number } | null;
         third?: { id: number } | null;

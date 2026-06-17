@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { LiveGameState } from "@/types/mlb-live";
 
-const LIVE_FEED_POLL_MS = 3_000;
+const LIVE_FEED_POLL_MS = 1_000;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
@@ -15,7 +15,7 @@ export interface UseLiveGameStateResult {
 }
 
 /**
- * Polls the MLB live feed every 3s for real-time count, matchup, bases, and box score.
+ * Polls the MLB live feed every 1s for real-time count, matchup, bases, and box score.
  * This runs independently of Supabase so the dashboard is never stuck waiting
  * on ingestor predictions.
  */

@@ -229,6 +229,15 @@ function callCode(event: PitchEventRaw): string {
   return event.details?.call?.code ?? event.details?.description?.charAt(0) ?? "—";
 }
 
+function inferInPlayOut(
+  isOut: boolean | undefined,
+  description: string | undefined,
+): boolean {
+  if (isOut) return true;
+  const desc = (description ?? "").toLowerCase();
+  return desc.includes("in play, out");
+}
+
 function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch | null {
   if (!event.isPitch || !event.pitchData?.coordinates) return null;
 
@@ -236,11 +245,13 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
   if (typeof coords.pX !== "number" || typeof coords.pZ !== "number") return null;
   if (typeof event.pitchData.startSpeed !== "number") return null;
 
+  const description = outcomeLabel(event);
+
   return {
     pitchNumber,
     typeCode: event.details?.type?.code ?? "—",
     typeDescription: event.details?.type?.description ?? "Unknown",
-    callDescription: outcomeLabel(event),
+    callDescription: description,
     callCode: callCode(event),
     balls: event.count?.balls ?? 0,
     strikes: event.count?.strikes ?? 0,
@@ -250,7 +261,7 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     isStrike: Boolean(event.details?.isStrike),
     isBall: Boolean(event.details?.isBall),
     isInPlay: Boolean(event.details?.isInPlay),
-    isOut: Boolean(event.details?.isOut),
+    isOut: inferInPlayOut(event.details?.isOut, description),
     isPitch: true,
     strikeZoneTop: event.pitchData.strikeZoneTop ?? 3.5,
     strikeZoneBottom: event.pitchData.strikeZoneBottom ?? 1.5,
@@ -451,9 +462,17 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
   const awayRuns = lineTeams?.away?.runs ?? 0;
   const homeRuns = lineTeams?.home?.runs ?? 0;
 
+  const inningState = linescore.inningState ?? "";
+  const isBreak = /^(middle|end)$/i.test(inningState);
   const inning = play?.about?.inning ?? linescore.currentInning ?? 1;
-  const inningHalf =
-    play?.about?.halfInning ?? linescore.inningState?.replace(" ", "") ?? "";
+  const inningHalf = isBreak
+    ? inningState.toLowerCase()
+    : (play?.about?.halfInning ?? inningState.replace(/\s+/g, "") ?? "");
+
+  const batter = offense.batter;
+  const onDeck = offense.onDeck;
+  const inHole = offense.inHole;
+  const defensePitcher = offense.pitcher;
 
   return {
     gamePk,
@@ -466,22 +485,28 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
     homeAbbrev: teams.home.abbreviation ?? teams.home.name.slice(0, 3).toUpperCase(),
     awayRuns,
     homeRuns,
-    batterId: play?.matchup?.batter?.id ?? null,
-    batterName: play?.matchup?.batter?.fullName || "—",
-    pitcherId: play?.matchup?.pitcher?.id ?? null,
-    pitcherName: play?.matchup?.pitcher?.fullName || "—",
+    batterId: batter?.id ?? play?.matchup?.batter?.id ?? null,
+    batterName: batter?.fullName ?? play?.matchup?.batter?.fullName ?? "—",
+    onDeckId: onDeck?.id ?? null,
+    onDeckName: onDeck?.fullName ?? "—",
+    inHoleId: inHole?.id ?? null,
+    inHoleName: inHole?.fullName ?? "—",
+    offenseTeamId: offense.team?.id ?? null,
+    battingOrderSlot: offense.battingOrder ?? null,
+    pitcherId: defensePitcher?.id ?? play?.matchup?.pitcher?.id ?? null,
+    pitcherName: defensePitcher?.fullName ?? play?.matchup?.pitcher?.fullName ?? "—",
     inning,
     inningHalf,
-    balls: play?.count?.balls ?? 0,
-    strikes: play?.count?.strikes ?? 0,
-    outs: play?.count?.outs ?? 0,
-    onFirst: offense.first != null,
-    onSecond: offense.second != null,
-    onThird: offense.third != null,
-    atBatPitches: parsePitchesFromEvents(
-      play?.playEvents,
-      play?.result?.description,
-    ),
+    inningState,
+    balls: isBreak ? 0 : (play?.count?.balls ?? 0),
+    strikes: isBreak ? 0 : (play?.count?.strikes ?? 0),
+    outs: isBreak ? 0 : (play?.count?.outs ?? 0),
+    onFirst: isBreak ? false : offense.first != null,
+    onSecond: isBreak ? false : offense.second != null,
+    onThird: isBreak ? false : offense.third != null,
+    atBatPitches: isBreak
+      ? []
+      : parsePitchesFromEvents(play?.playEvents, play?.result?.description),
     plays: parsePlayByPlay(feed.liveData.plays.allPlays),
     observedAt: new Date().toISOString(),
   };

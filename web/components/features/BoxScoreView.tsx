@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,9 @@ interface BoxScoreViewProps {
   isLoading?: boolean;
   error?: string | null;
   className?: string;
+  atBatPlayerId?: number | null;
+  onDeckPlayerId?: number | null;
+  offenseTeamId?: number | null;
 }
 
 function formatInningRuns(value: number | null, skipped = false): string {
@@ -129,7 +132,17 @@ function StatTable({
   );
 }
 
-function BattersTable({ batters, teamAbbrev }: { batters: BatterBoxLine[]; teamAbbrev: string }) {
+function BattersTable({
+  batters,
+  teamAbbrev,
+  atBatPlayerId,
+  onDeckPlayerId,
+}: {
+  batters: BatterBoxLine[];
+  teamAbbrev: string;
+  atBatPlayerId?: number | null;
+  onDeckPlayerId?: number | null;
+}) {
   return (
     <section>
       <h4 className="mb-2 text-sm font-semibold text-foreground">Batters — {teamAbbrev}</h4>
@@ -138,8 +151,18 @@ function BattersTable({ batters, teamAbbrev }: { batters: BatterBoxLine[]; teamA
         rows={batters}
         renderRow={(row) => {
           const batter = row as BatterBoxLine;
+          const isAtBat = atBatPlayerId != null && batter.playerId === atBatPlayerId;
+          const isOnDeck = onDeckPlayerId != null && batter.playerId === onDeckPlayerId;
+
           return (
-            <tr key={batter.playerId} className="border-b border-border/60">
+            <tr
+              key={batter.playerId}
+              className={cn(
+                "border-b border-border/60",
+                isAtBat && "bg-amber-500/12 ring-1 ring-inset ring-amber-500/35",
+                isOnDeck && !isAtBat && "bg-sky-500/10 ring-1 ring-inset ring-sky-500/30",
+              )}
+            >
               <td className="px-2 py-1.5 text-left">
                 <span className="font-medium text-foreground">
                   {batter.note}
@@ -147,6 +170,15 @@ function BattersTable({ batters, teamAbbrev }: { batters: BatterBoxLine[]; teamA
                 </span>
                 {batter.positions ? (
                   <span className="ml-1 text-muted">({batter.positions})</span>
+                ) : null}
+                {isAtBat ? (
+                  <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                    AB
+                  </span>
+                ) : isOnDeck ? (
+                  <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-400">
+                    OD
+                  </span>
                 ) : null}
               </td>
               <td className="px-2 py-1.5 text-center tabular-nums">{batter.atBats}</td>
@@ -299,10 +331,25 @@ function GameInfoSection({ info }: { info: GameInfoItem[] }) {
   );
 }
 
-function TeamBoxScoreSections({ team }: { team: TeamBoxScore }) {
+function TeamBoxScoreSections({
+  team,
+  atBatPlayerId,
+  onDeckPlayerId,
+  highlightBatters,
+}: {
+  team: TeamBoxScore;
+  atBatPlayerId?: number | null;
+  onDeckPlayerId?: number | null;
+  highlightBatters: boolean;
+}) {
   return (
     <div className="space-y-6">
-      <BattersTable batters={team.batters} teamAbbrev={team.abbrev} />
+      <BattersTable
+        batters={team.batters}
+        teamAbbrev={team.abbrev}
+        atBatPlayerId={highlightBatters ? atBatPlayerId : null}
+        onDeckPlayerId={highlightBatters ? onDeckPlayerId : null}
+      />
       <PitchingTable
         pitchers={team.pitchers}
         totals={team.pitchingTotals}
@@ -314,8 +361,25 @@ function TeamBoxScoreSections({ team }: { team: TeamBoxScore }) {
   );
 }
 
-export function BoxScoreView({ boxScore, isLoading, error, className }: BoxScoreViewProps) {
+export function BoxScoreView({
+  boxScore,
+  isLoading,
+  error,
+  className,
+  atBatPlayerId,
+  onDeckPlayerId,
+  offenseTeamId,
+}: BoxScoreViewProps) {
   const [selectedSide, setSelectedSide] = useState<"away" | "home">("away");
+
+  useEffect(() => {
+    if (offenseTeamId == null || !boxScore) return;
+    if (offenseTeamId === boxScore.home.teamId) {
+      setSelectedSide("home");
+    } else if (offenseTeamId === boxScore.away.teamId) {
+      setSelectedSide("away");
+    }
+  }, [offenseTeamId, boxScore]);
 
   if (isLoading && !boxScore) {
     return (
@@ -346,6 +410,12 @@ export function BoxScoreView({ boxScore, isLoading, error, className }: BoxScore
   const selectedTeam = selectedSide === "away" ? boxScore.away : boxScore.home;
   const awayLabel = boxScore.away.name;
   const homeLabel = boxScore.home.name;
+  const highlightAway =
+    offenseTeamId != null ? offenseTeamId === boxScore.away.teamId : false;
+  const highlightHome =
+    offenseTeamId != null ? offenseTeamId === boxScore.home.teamId : false;
+  const showHighlights =
+    (selectedSide === "away" && highlightAway) || (selectedSide === "home" && highlightHome);
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
@@ -383,7 +453,12 @@ export function BoxScoreView({ boxScore, isLoading, error, className }: BoxScore
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="space-y-6">
-          <TeamBoxScoreSections team={selectedTeam} />
+          <TeamBoxScoreSections
+            team={selectedTeam}
+            atBatPlayerId={showHighlights ? atBatPlayerId : null}
+            onDeckPlayerId={showHighlights ? onDeckPlayerId : null}
+            highlightBatters={showHighlights}
+          />
           <GameInfoSection info={boxScore.info} />
         </div>
       </div>

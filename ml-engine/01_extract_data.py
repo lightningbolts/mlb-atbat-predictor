@@ -5,26 +5,99 @@ from supabase import create_client, Client
 
 # Load Environment Variables
 load_dotenv()
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
+url: str = os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
+
+if not url or not key:
+    raise ValueError(
+        "Missing Supabase credentials. Set NEXT_PUBLIC_SUPABASE_URL and "
+        "SUPABASE_SERVICE_ROLE_KEY in ml-engine/.env"
+    )
+
 supabase: Client = create_client(url, key)
 
+OUTCOME_KEYS = [
+    'strikeout',
+    'walk',
+    'single',
+    'double',
+    'triple',
+    'home_run',
+    'field_out',
+    'force_out',
+    'forceout',
+    'grounded_into_dp',
+    'fly_out',
+    'flyout',
+    'line_out',
+    'lineout',
+    'pop_out',
+    'groundout',
+    'sac_fly',
+    'sacrifice_fly',
+    'sac_bunt',
+    'sacrifice_bunt',
+    'bunt_groundout',
+    'double_play',
+    'fielders_choice_out',
+    'fielders_choice',
+    'field_error',
+    'other',
+]
+
 def map_outcome(event_type):
-    """Maps raw MLB API pitch outcomes to our 4 target categories"""
+    """Maps MLB at-bat result strings to our 4 target categories."""
     if not event_type:
         return 'Other'
-        
-    event_type = event_type.lower()
-    if event_type in ['strikeout', 'strikeout_double_play']:
+
+    normalized = event_type.lower().replace(' ', '_').replace('-', '_')
+
+    if normalized in ['strikeout', 'strikeout_double_play']:
         return 'Strikeout'
-    elif event_type in ['walk', 'intentional_walk']:
+    elif normalized in ['walk', 'intentional_walk', 'intent_walk', 'hit_by_pitch']:
         return 'Walk'
-    elif event_type in ['single', 'double', 'triple', 'home_run']:
+    elif normalized in ['single', 'double', 'triple', 'home_run']:
         return 'Hit'
-    elif event_type in ['field_out', 'force_out', 'grounded_into_dp', 'fly_out', 'line_out', 'pop_out']:
+    elif normalized in [
+        'field_out', 'force_out', 'forceout', 'grounded_into_dp',
+        'fly_out', 'flyout', 'line_out', 'lineout', 'pop_out',
+        'groundout', 'sac_fly', 'sacrifice_fly', 'sac_bunt',
+        'sacrifice_bunt', 'bunt_groundout', 'double_play',
+        'fielders_choice_out', 'fielders_choice', 'field_error',
+    ]:
         return 'Out_In_Play'
-    
+
     return 'Other'
+
+def extract_at_bats_from_state(game_pk, state):
+    """Flatten parsed LiveGameState JSON (stored by sync-game-feeds) into rows."""
+    rows = []
+
+    for play in state.get('plays', []):
+        detail = play.get('detail') or {}
+        pitcher_id = detail.get('pitcherId')
+        batter_id = play.get('batterId') or detail.get('batterId')
+        inning = play.get('inning') or detail.get('inning')
+
+        pitches = [p for p in detail.get('pitches', []) if p.get('isPitch')]
+        if not pitches:
+            continue
+
+        last_pitch = pitches[-1]
+        situation = play.get('situationBefore') or {}
+
+        rows.append({
+            'game_pk': game_pk,
+            'pitcher_id': pitcher_id,
+            'batter_id': batter_id,
+            'inning': inning,
+            'balls': last_pitch.get('balls', 0),
+            'strikes': last_pitch.get('strikes', 0),
+            'outs': situation.get('outs', 0),
+            'outcome_label': map_outcome(play.get('event') or detail.get('event')),
+        })
+
+    return rows
 
 def fetch_ml_data():
     print("Fetching game JSONs from Supabase...")
@@ -42,56 +115,24 @@ def fetch_ml_data():
         game_pk = game['game_pk']
         state = game['game_state']
         
-        # Navigate the standard MLB Stats API JSON structure
         try:
-            # The play-by-play array is usually nested here
-            plays = state.get('liveData', {}).get('plays', {}).get('allPlays', [])
-            
-            for play in plays:
-                # Matchup & Game State Context
-                pitcher_id = play.get('matchup', {}).get('pitcher', {}).get('id')
-                batter_id = play.get('matchup', {}).get('batter', {}).get('id')
-                inning = play.get('about', {}).get('inning')
-                
-                # Loop through every event (pitch) in the at-bat
-                play_events = play.get('playEvents', [])
-                for event in play_events:
-                    
-                    # We only care about actual pitches
-                    if event.get('isPitch'):
-                        
-                        # Get the count BEFORE this pitch was thrown
-                        count = event.get('count', {})
-                        balls = count.get('balls', 0)
-                        strikes = count.get('strikes', 0)
-                        outs = count.get('outs', 0)
-                        
-                        # Did this pitch end the at-bat? If so, what was the result?
-                        is_last_pitch = event.get('details', {}).get('isOut') is not None or event.get('details', {}).get('hasReview')
-                        # The final result of the at-bat is usually stored on the main 'play' object
-                        event_result = play.get('result', {}).get('eventType', '') if is_last_pitch else 'Other'
-                        
-                        row = {
-                            'game_pk': game_pk,
-                            'pitcher_id': pitcher_id,
-                            'batter_id': batter_id,
-                            'inning': inning,
-                            'balls': balls,
-                            'strikes': strikes,
-                            'outs': outs,
-                            'outcome_label': map_outcome(event_result)
-                        }
-                        all_pitches.append(row)
-                        
+            all_pitches.extend(extract_at_bats_from_state(game_pk, state))
         except Exception as e:
             print(f"Skipping game {game_pk} due to parsing error: {e}")
             continue
 
+    if not all_pitches:
+        print("No at-bats parsed from game_state.plays.")
+        empty = pd.DataFrame(columns=[
+            'game_pk', 'pitcher_id', 'batter_id', 'inning',
+            'balls', 'strikes', 'outs', 'outcome_label',
+        ])
+        return empty[['inning', 'outs', 'balls', 'strikes']], empty['outcome_label'], empty
+
     # Convert the flat list of dictionaries into a Pandas DataFrame
     df = pd.DataFrame(all_pitches)
     
-    # Clean the Data
-    # Drop intermediate pitches that didn't end an at-bat ('Other')
+    # Clean the Data — one row per completed at-bat
     df = df[df['outcome_label'] != 'Other']
     df = df.dropna()
     

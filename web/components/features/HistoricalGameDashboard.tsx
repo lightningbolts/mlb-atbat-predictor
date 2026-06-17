@@ -8,7 +8,9 @@ import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
 import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
+import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
+import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
@@ -19,8 +21,10 @@ import { useGamePredictions } from "@/hooks/useGamePredictions";
 import { useGameState } from "@/hooks/useGameState";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
+import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/games/format";
 import { gameStateForAtBat } from "@/lib/games/replay";
+import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
 import { DEFAULT_OUTCOME_PROBABILITIES } from "@/types/database";
 import type { Game } from "@/types/database";
@@ -57,6 +61,11 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
     isLoading: isBoxScoreLoading,
     error: boxScoreError,
   } = useGameBoxScore(game.game_pk, { poll: isLive });
+
+  const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal } = useLiveGameOverlays(
+    isLive ? gameState : null,
+    isLive ? boxScore : null,
+  );
 
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
@@ -113,6 +122,11 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
   );
 
   const score = formatScore(game);
+  const showBatterHighlights =
+    isLive &&
+    gameState != null &&
+    gameState.gameStatus === "Live" &&
+    !isHalfInningBreak(gameState.inningState);
 
   return (
     <div className="flex h-screen min-h-0 flex-col bg-background text-foreground">
@@ -166,6 +180,9 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
               boxScore={boxScore}
               isLoading={isBoxScoreLoading}
               error={boxScoreError}
+              atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
+              onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
+              offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
             />
           ) : !gameState ? (
             <div className="flex flex-1 items-center justify-center px-6 text-center">
@@ -284,6 +301,18 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
             </>
           )}
         </div>
+      )}
+
+      {isLive && (
+        <>
+          <DueUpDialog context={dueUp} open={showDueUp} onClose={dismissDueUp} />
+          <GameFinalDialog
+            gameState={gameState}
+            boxScore={boxScore}
+            open={showFinal}
+            onClose={dismissFinal}
+          />
+        </>
       )}
     </div>
   );

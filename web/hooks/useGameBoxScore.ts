@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 
+const LIVE_POLL_MS = 1_000;
+
 export interface UseGameBoxScoreResult {
   boxScore: GameBoxScore | null;
   isLoading: boolean;
@@ -68,7 +70,7 @@ export function useGameBoxScore(
 
     const pollId = window.setInterval(() => {
       void fetchBoxScore();
-    }, 3_000);
+    }, LIVE_POLL_MS);
 
     return () => window.clearInterval(pollId);
   }, [gamePk, fetchBoxScore, shouldPoll]);

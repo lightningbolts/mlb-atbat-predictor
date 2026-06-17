@@ -95,12 +95,14 @@ export function homePlatePath(
 }
 
 export function pitchResultColor(
-  pitch: Pick<PlayPitch, "isBall" | "isStrike" | "isInPlay" | "isOut" | "isPitch" | "review">,
+  pitch: Pick<PlayPitch, "isBall" | "isStrike" | "isInPlay" | "isOut" | "isPitch" | "review" | "callDescription">,
 ): string {
   if (pitch.review) return PITCH_REVIEW_COLOR;
   if (!pitch.isPitch) return PITCH_NEUTRAL_COLOR;
   if (pitch.isInPlay) {
-    return pitch.isOut ? PITCH_IN_PLAY_OUT_COLOR : PITCH_IN_PLAY_SAFE_COLOR;
+    const desc = pitch.callDescription.toLowerCase();
+    const isOut = pitch.isOut || desc.includes("in play, out");
+    return isOut ? PITCH_IN_PLAY_OUT_COLOR : PITCH_IN_PLAY_SAFE_COLOR;
   }
   if (pitch.isBall) return PITCH_BALL_COLOR;
   if (pitch.isStrike) return PITCH_STRIKE_COLOR;
