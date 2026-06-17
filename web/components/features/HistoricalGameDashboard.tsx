@@ -21,6 +21,7 @@ import { useGamePredictions } from "@/hooks/useGamePredictions";
 import { useGameState } from "@/hooks/useGameState";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
+import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/games/format";
 import { gameStateForAtBat } from "@/lib/games/replay";
@@ -62,9 +63,11 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
     error: boxScoreError,
   } = useGameBoxScore(game.game_pk, { poll: isLive });
 
+  const { showBreakUI } = useBreakLinger(isLive ? gameState : null);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal } = useLiveGameOverlays(
     isLive ? gameState : null,
     isLive ? boxScore : null,
+    showBreakUI,
   );
 
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");

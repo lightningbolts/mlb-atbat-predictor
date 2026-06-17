@@ -17,6 +17,7 @@ export interface LiveGameOverlays {
 export function useLiveGameOverlays(
   gameState: LiveGameState | null,
   boxScore: GameBoxScore | null,
+  showBreakUI = true,
 ): LiveGameOverlays {
   const [dismissedBreaks, setDismissedBreaks] = useState<Set<string>>(() => new Set());
   const [finalDismissed, setFinalDismissed] = useState(false);
@@ -58,7 +59,7 @@ export function useLiveGameOverlays(
     setFinalDismissed(true);
   }, []);
 
-  const showDueUp = dueUp != null && !dismissedBreaks.has(dueUp.breakKey);
+  const showDueUp = dueUp != null && showBreakUI && !dismissedBreaks.has(dueUp.breakKey);
   const showFinal = isFinal && !finalDismissed;
 
   return {

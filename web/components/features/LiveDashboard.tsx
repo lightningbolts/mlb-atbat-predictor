@@ -18,6 +18,7 @@ import { Scorebug } from "@/components/features/Scorebug";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
+import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
@@ -44,9 +45,11 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
     games.find((g) => g.gamePk === selectedGamePk) ?? games[0];
 
   const { gameState, boxScore, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
+  const { atBatViewState, showBreakUI } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal } = useLiveGameOverlays(
     gameState,
     boxScore,
+    showBreakUI,
   );
   const { latestPrediction, isLoading: isPredictionsLoading, error, connectionStatus } =
     useLivePredictions(selectedGamePk);
@@ -62,16 +65,15 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   const runnersInScoringPosition = onSecond || onThird;
 
   const { record: matchupRecord, isLoading: isMatchupLoading } = useBatterVsPitcher(
-    gameState?.batterId,
-    gameState?.pitcherId,
+    atBatViewState?.batterId,
+    atBatViewState?.pitcherId,
   );
   const { stats: rispStats, isLoading: isRispLoading } = useBatterRisp(
-    gameState?.batterId,
+    atBatViewState?.batterId,
     runnersInScoringPosition,
   );
 
   const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && !latestPrediction;
-  const isBreak = gameState != null && isHalfInningBreak(gameState.inningState);
   const showBatterHighlights =
     gameState != null &&
     gameState.gameStatus === "Live" &&
@@ -94,8 +96,8 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
         <>
       <Scorebug
         gameState={
-          gameState
-            ? { ...gameState, onFirst, onSecond, onThird }
+          atBatViewState
+            ? { ...atBatViewState, onFirst, onSecond, onThird }
             : null
         }
       />
@@ -141,25 +143,25 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
-                <Panel title={isBreak ? "Due up" : "Current at-bat"} className="min-h-[380px] flex-[3]">
-                  {gameState && !isBreak && (
+                <Panel title={showBreakUI ? "Due up" : "Current at-bat"} className="min-h-[380px] flex-[3]">
+                  {atBatViewState && !showBreakUI && (
                     <>
                       <BatterVsPitcherRecord
-                        batterName={gameState.batterName}
-                        pitcherName={gameState.pitcherName}
+                        batterName={atBatViewState.batterName}
+                        pitcherName={atBatViewState.pitcherName}
                         record={matchupRecord}
                         isLoading={isMatchupLoading}
                       />
                       {runnersInScoringPosition && (
                         <BatterRispRecord
-                          batterName={gameState.batterName}
+                          batterName={atBatViewState.batterName}
                           stats={rispStats}
                           isLoading={isRispLoading}
                         />
                       )}
                     </>
                   )}
-                  {isBreak && dueUp ? (
+                  {showBreakUI && dueUp ? (
                     <ul className="space-y-2">
                       {dueUp.batters.map((batter) => (
                         <li
@@ -179,13 +181,13 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                         </li>
                       ))}
                     </ul>
-                  ) : isBreak ? (
+                  ) : showBreakUI ? (
                     <p className="text-sm text-subtle">Loading due up…</p>
-                  ) : (gameState?.atBatPitches.length ?? 0) === 0 ? (
+                  ) : (atBatViewState?.atBatPitches.length ?? 0) === 0 ? (
                     <p className="text-sm text-subtle">Waiting for first pitch…</p>
                   ) : (
                     <PitchSequence
-                      pitches={gameState?.atBatPitches ?? []}
+                      pitches={atBatViewState?.atBatPitches ?? []}
                       size="large"
                       layout="split"
                       scrollToLatest

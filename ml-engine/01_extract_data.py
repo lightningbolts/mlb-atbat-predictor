@@ -23,26 +23,7 @@ OUTCOME_KEYS = [
     'double',
     'triple',
     'home_run',
-    'field_out',
-    'force_out',
-    'forceout',
-    'grounded_into_dp',
-    'fly_out',
-    'flyout',
-    'line_out',
-    'lineout',
-    'pop_out',
-    'groundout',
-    'sac_fly',
-    'sacrifice_fly',
-    'sac_bunt',
-    'sacrifice_bunt',
-    'bunt_groundout',
-    'double_play',
-    'fielders_choice_out',
-    'fielders_choice',
-    'field_error',
-    'other',
+    'field_out'
 ]
 
 def map_outcome(event_type):
