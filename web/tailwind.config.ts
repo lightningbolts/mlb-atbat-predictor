@@ -36,13 +36,13 @@ const config: Config = {
       },
       keyframes: {
         pitchIn: {
-          from: { opacity: "0", transform: "translateY(4px)" },
+          from: { opacity: "0.82", transform: "translateY(2px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
       },
       animation: {
         pulse_slow: "pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        pitch_in: "pitchIn 0.35s ease-out forwards",
+        pitch_in: "pitchIn 0.16s ease-out forwards",
       },
     },
   },

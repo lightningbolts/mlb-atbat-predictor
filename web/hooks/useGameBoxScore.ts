@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 
-const LIVE_POLL_MS = 1_000;
+const LIVE_POLL_MS = 3_000;
 
 export interface UseGameBoxScoreResult {
   boxScore: GameBoxScore | null;

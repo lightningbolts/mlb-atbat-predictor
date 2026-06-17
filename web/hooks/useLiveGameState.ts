@@ -1,49 +1,54 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { GameBoxScore } from "@/types/mlb-boxscore";
+import { fetchClientLiveGameState, liveStateFingerprint } from "@/lib/mlb/liveFeed";
 import type { LiveGameState } from "@/types/mlb-live";
 
-const LIVE_FEED_POLL_MS = 1_000;
+import { useChainedPoll } from "./useChainedPoll";
+
+/** Minimum gap between live feed polls — chained so slow responses don't stack. */
+const LIVE_FEED_MIN_GAP_MS = 300;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
-  boxScore: GameBoxScore | null;
   isLoading: boolean;
   error: string | null;
 }
 
 /**
- * Polls the MLB live feed every 1s for real-time count, matchup, bases, and box score.
- * This runs independently of Supabase so the dashboard is never stuck waiting
- * on ingestor predictions.
+ * Polls the MLB live feed directly from the browser for low-latency pitch updates.
+ * Box score is loaded separately via useGameBoxScore.
  */
 export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
-  const [boxScore, setBoxScore] = useState<GameBoxScore | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchState = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/game/${gamePk}/live`);
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `Live feed error ${response.status}`);
-      }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-      const data = (await response.json()) as {
-        state: LiveGameState;
-        boxScore: GameBoxScore | null;
-      };
-      setGameState(data.state);
-      setBoxScore(data.boxScore ?? null);
+    try {
+      const next = await fetchClientLiveGameState(gamePk, controller.signal);
+      if (controller.signal.aborted) return;
+
+      setGameState((prev) => {
+        if (prev && liveStateFingerprint(prev) === liveStateFingerprint(next)) {
+          return prev;
+        }
+        return next;
+      });
       setError(null);
     } catch (err) {
+      if (controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : "Failed to fetch live game state");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [gamePk]);
 
@@ -54,17 +59,15 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     }
 
     setGameState(null);
-    setBoxScore(null);
     setIsLoading(true);
     setError(null);
 
-    void fetchState();
-    const pollId = window.setInterval(() => {
-      void fetchState();
-    }, LIVE_FEED_POLL_MS);
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, [gamePk]);
 
-    return () => window.clearInterval(pollId);
-  }, [gamePk, fetchState]);
+  useChainedPoll(fetchState, LIVE_FEED_MIN_GAP_MS, Boolean(gamePk), gamePk);
 
-  return { gameState, boxScore, isLoading, error };
+  return { gameState, isLoading, error };
 }

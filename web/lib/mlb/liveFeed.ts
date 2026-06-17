@@ -613,6 +613,50 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
   };
 }
 
+/** Cheap fingerprint to skip React updates when the live snapshot is unchanged. */
+export function liveStateFingerprint(state: LiveGameState): string {
+  const lastPitch = state.atBatPitches.at(-1);
+  return [
+    state.gameStatus,
+    state.inning,
+    state.inningState,
+    state.balls,
+    state.strikes,
+    state.outs,
+    state.awayRuns,
+    state.homeRuns,
+    state.batterId,
+    state.pitcherId,
+    state.onFirst,
+    state.onSecond,
+    state.onThird,
+    state.atBatPitches.length,
+    lastPitch?.pitchNumber,
+    lastPitch?.callCode,
+    lastPitch?.balls,
+    lastPitch?.strikes,
+    state.plays.length,
+  ].join("|");
+}
+
+/** Browser-side MLB live feed fetch (CORS-enabled, skips the Next.js proxy hop). */
+export async function fetchClientLiveGameState(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<LiveGameState> {
+  const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`MLB live feed failed: ${response.status}`);
+  }
+
+  const feed = (await response.json()) as MLBLiveFeedResponse;
+  return parseLiveFeed(gamePk, feed);
+}
+
 export async function fetchGameFeed(gamePk: number): Promise<GameFeed> {
   const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
     cache: "no-store",

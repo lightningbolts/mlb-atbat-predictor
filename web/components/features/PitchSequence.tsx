@@ -158,7 +158,7 @@ function StrikeZoneChart({
         return (
           <g
             key={`${pitch.pitchNumber}-${pitch.callCode}`}
-            className={animate ? "animate-pitch_in opacity-0" : undefined}
+            className={animate ? "animate-pitch_in" : undefined}
           >
             <circle cx={dot.x} cy={dot.y} r={styles.dotR + 0.35} fill="rgb(0 0 0 / 0.2)" />
             <circle cx={dot.x} cy={dot.y} r={styles.dotR} fill={color} />
@@ -203,7 +203,7 @@ function PitchFeed({
             className={cn(
               "flex items-start gap-3",
               styles.rowPy,
-              animate && "animate-pitch_in opacity-0",
+              animate && "animate-pitch_in",
             )}
           >
             {p.isPitch ? (
@@ -264,7 +264,7 @@ function PitchFeedColumn({
   useEffect(() => {
     if (!scrollToLatest || pitches.length === 0) return;
     if (pitches.length >= prevCountRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      bottomRef.current?.scrollIntoView({ block: "end" });
     }
     prevCountRef.current = pitches.length;
   }, [pitches.length, scrollToLatest]);

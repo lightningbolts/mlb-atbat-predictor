@@ -21,6 +21,7 @@ import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
+import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,8 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   const selectedGame =
     games.find((g) => g.gamePk === selectedGamePk) ?? games[0];
 
-  const { gameState, boxScore, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
+  const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
+  const { boxScore, isLoading: isBoxScoreLoading } = useGameBoxScore(selectedGamePk, { poll: true });
   const { atBatViewState, showBreakUI } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal } = useLiveGameOverlays(
     gameState,
@@ -87,7 +89,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
       {activeTab === "box" ? (
         <BoxScoreView
           boxScore={boxScore}
-          isLoading={isFeedLoading}
+          isLoading={isBoxScoreLoading}
           atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
           onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
           offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
