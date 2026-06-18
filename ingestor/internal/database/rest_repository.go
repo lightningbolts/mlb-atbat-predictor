@@ -140,6 +140,86 @@ func (r *RestRepository) UpdateGameFromPoll(
 	return r.do(ctx, http.MethodPatch, path, payload, "return=minimal", nil)
 }
 
+func (r *RestRepository) UpdateGameFeed(ctx context.Context, gamePK int, update GameFeedUpdate) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context already canceled: %w", ctx.Err())
+	}
+
+	syncedAt := update.FeedSyncedAt
+	if syncedAt.IsZero() {
+		syncedAt = time.Now().UTC()
+	}
+
+	payload := map[string]any{
+		"game_state":     json.RawMessage(update.GameState),
+		"box_score":      json.RawMessage(update.BoxScore),
+		"feed_synced_at": syncedAt.UTC().Format(time.RFC3339Nano),
+		"away_score":     update.AwayScore,
+		"home_score":     update.HomeScore,
+		"status":         update.Status,
+		"updated_at":     syncedAt.UTC().Format(time.RFC3339Nano),
+	}
+	if update.VenueID != nil {
+		payload["venue_id"] = *update.VenueID
+	}
+	if update.VenueName != "" {
+		payload["venue_name"] = update.VenueName
+	}
+
+	path := fmt.Sprintf("/rest/v1/games?game_pk=eq.%d", gamePK)
+	return r.do(ctx, http.MethodPatch, path, payload, "return=minimal", nil)
+}
+
+func (r *RestRepository) ListGamesNeedingFeedSync(ctx context.Context, sinceDate string, limit int) ([]int, error) {
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("context already canceled: %w", ctx.Err())
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	endpoint := fmt.Sprintf(
+		"%s/rest/v1/games?select=game_pk&feed_synced_at=is.null&status=eq.Final&game_date=gte.%s&order=game_date.desc&limit=%d",
+		r.baseURL,
+		sinceDate,
+		limit,
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("apikey", r.serviceKey)
+	req.Header.Set("Authorization", "Bearer "+r.serviceKey)
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("list games needing feed sync: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("list games needing feed sync failed (%d): %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var rows []struct {
+		GamePK int `json:"game_pk"`
+	}
+	if err := json.Unmarshal(body, &rows); err != nil {
+		return nil, fmt.Errorf("decode games needing feed sync: %w", err)
+	}
+
+	pks := make([]int, 0, len(rows))
+	for _, row := range rows {
+		pks = append(pks, row.GamePK)
+	}
+	return pks, nil
+}
+
 func (r *RestRepository) do(
 	ctx context.Context,
 	method, path string,

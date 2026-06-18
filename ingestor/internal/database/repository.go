@@ -264,6 +264,89 @@ func (r *Repository) UpdateGameFromPoll(
 	return nil
 }
 
+const updateGameFeedSQL = `
+UPDATE games SET
+    game_state = $2::jsonb,
+    box_score = $3::jsonb,
+    feed_synced_at = $4,
+    away_score = $5,
+    home_score = $6,
+    status = $7,
+    venue_id = $8,
+    venue_name = $9,
+    updated_at = $4
+WHERE game_pk = $1;
+`
+
+// UpdateGameFeed stores the full MLB live feed for Season History replay.
+func (r *Repository) UpdateGameFeed(ctx context.Context, gamePK int, update GameFeedUpdate) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context already canceled: %w", ctx.Err())
+	}
+
+	syncedAt := update.FeedSyncedAt
+	if syncedAt.IsZero() {
+		syncedAt = time.Now().UTC()
+	}
+
+	_, err := r.pool.Exec(ctx, updateGameFeedSQL,
+		gamePK,
+		update.GameState,
+		update.BoxScore,
+		syncedAt,
+		update.AwayScore,
+		update.HomeScore,
+		update.Status,
+		update.VenueID,
+		nullIfEmpty(update.VenueName),
+	)
+	if err != nil {
+		return fmt.Errorf("update game feed %d: %w", gamePK, err)
+	}
+
+	return nil
+}
+
+const listGamesNeedingFeedSyncSQL = `
+SELECT game_pk
+FROM games
+WHERE feed_synced_at IS NULL
+  AND status = 'Final'
+  AND game_date >= $1
+ORDER BY game_date DESC
+LIMIT $2;
+`
+
+// ListGamesNeedingFeedSync returns final games missing cached play-by-play feeds.
+func (r *Repository) ListGamesNeedingFeedSync(ctx context.Context, sinceDate string, limit int) ([]int, error) {
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("context already canceled: %w", ctx.Err())
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	rows, err := r.pool.Query(ctx, listGamesNeedingFeedSyncSQL, sinceDate, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list games needing feed sync: %w", err)
+	}
+	defer rows.Close()
+
+	var pks []int
+	for rows.Next() {
+		var pk int
+		if err := rows.Scan(&pk); err != nil {
+			return nil, fmt.Errorf("scan game pk: %w", err)
+		}
+		pks = append(pks, pk)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate games needing feed sync: %w", err)
+	}
+
+	return pks, nil
+}
+
 func nullIfEmpty(value string) *string {
 	if value == "" {
 		return nil

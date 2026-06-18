@@ -126,12 +126,21 @@ func run(logger *slog.Logger) error {
 	onChange := pipeline.StateChangeHandler(pred, repo, logger.With("component", "pipeline"))
 
 	onGameEnd := func(ctx context.Context, gamePK int, status string, awayScore, homeScore int) error {
-		logger.Info("game finished; run sync-game-feeds to cache play-by-play",
-			"game_pk", gamePK,
-			"status", status,
-			"away_score", awayScore,
-			"home_score", homeScore,
-		)
+		go func() {
+			syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			feedStore := repoFeedAdapter{store: repo}
+			if err := mlb.CacheGameFeed(syncCtx, mlbClient, feedStore, gamePK, logger); err != nil {
+				logger.Error("failed to cache game feed for season history",
+					"game_pk", gamePK,
+					"status", status,
+					"error", err,
+				)
+				return
+			}
+			logger.Info("game feed cached for season history", "game_pk", gamePK)
+		}()
 		return nil
 	}
 
@@ -188,6 +197,19 @@ func run(logger *slog.Logger) error {
 			}
 			logger.Info("synced schedule to database", "dates", dates, "count", len(allGames))
 		}
+
+		feedStore := repoFeedAdapter{store: repo}
+		reconcileDates := mlb.RecentScheduleDates(date, 7)
+		reconcileSince := reconcileDates[0]
+		go mlb.ReconcileMissingFeeds(
+			context.Background(),
+			mlbClient,
+			feedStore,
+			repo,
+			reconcileSince,
+			8,
+			logger.With("component", "feed-reconcile"),
+		)
 
 		var livePKs []int
 		for _, game := range allGames {
@@ -274,4 +296,21 @@ func scheduleGamesToRows(games []mlb.ScheduleGame) []database.GameRow {
 		})
 	}
 	return rows
+}
+
+type repoFeedAdapter struct {
+	store database.Store
+}
+
+func (a repoFeedAdapter) UpdateGameFeed(ctx context.Context, gamePK int, update mlb.GameFeedUpdate) error {
+	return a.store.UpdateGameFeed(ctx, gamePK, database.GameFeedUpdate{
+		GameState:    update.GameState,
+		BoxScore:     update.BoxScore,
+		Status:       update.Status,
+		AwayScore:    update.AwayScore,
+		HomeScore:    update.HomeScore,
+		VenueID:      update.VenueID,
+		VenueName:    update.VenueName,
+		FeedSyncedAt: update.FeedSyncedAt,
+	})
 }

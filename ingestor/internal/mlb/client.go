@@ -58,6 +58,21 @@ func NewClient(opts ClientOptions) *Client {
 
 // FetchLiveFeed retrieves and unmarshals the live feed for a single game.
 func (c *Client) FetchLiveFeed(ctx context.Context, gamePK int) (*LiveFeed, error) {
+	raw, err := c.FetchLiveFeedRaw(ctx, gamePK)
+	if err != nil {
+		return nil, err
+	}
+
+	var feed LiveFeed
+	if err := json.Unmarshal(raw, &feed); err != nil {
+		return nil, fmt.Errorf("unmarshal live feed gamePk=%d: %w", gamePK, err)
+	}
+
+	return &feed, nil
+}
+
+// FetchLiveFeedRaw returns the untouched JSON body from the live feed endpoint.
+func (c *Client) FetchLiveFeedRaw(ctx context.Context, gamePK int) (json.RawMessage, error) {
 	url := fmt.Sprintf("%s/game/%d/feed/live", c.baseURL, gamePK)
 
 	body, err := c.getWithRetry(ctx, url)
@@ -65,12 +80,7 @@ func (c *Client) FetchLiveFeed(ctx context.Context, gamePK int) (*LiveFeed, erro
 		return nil, fmt.Errorf("fetch live feed gamePk=%d: %w", gamePK, err)
 	}
 
-	var feed LiveFeed
-	if err := json.Unmarshal(body, &feed); err != nil {
-		return nil, fmt.Errorf("unmarshal live feed gamePk=%d: %w", gamePK, err)
-	}
-
-	return &feed, nil
+	return json.RawMessage(body), nil
 }
 
 // getWithRetry executes GET with exponential backoff. Context cancellation
