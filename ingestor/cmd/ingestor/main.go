@@ -163,7 +163,7 @@ func run(logger *slog.Logger) error {
 
 	syncSchedule := func() error {
 		date := mlb.ScheduleDateET(time.Now())
-		dates := []string{mlb.PreviousScheduleDate(date), date}
+		dates := mlb.RecentScheduleDates(date, 7)
 		seen := make(map[int]mlb.ScheduleGame)
 
 		for _, scheduleDate := range dates {

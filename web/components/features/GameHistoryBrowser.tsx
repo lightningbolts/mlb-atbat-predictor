@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -14,7 +15,11 @@ import {
   isLiveStatus,
   isReplayableGame,
 } from "@/lib/games/format";
-import { getLocalCalendarDate, getMLBScheduleDate } from "@/lib/mlb/schedule";
+import {
+  buildGameDetailHref,
+  buildSeasonHistoryHref,
+  getMLBScheduleDate,
+} from "@/lib/mlb/schedule";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
 import type { Game } from "@/types/database";
@@ -27,13 +32,23 @@ interface GameHistoryBrowserProps {
   initialView?: ViewMode;
 }
 
-function GameRow({ game }: { game: Game }) {
+interface GameRowProps {
+  game: Game;
+  historyContext: { date: string; view: ViewMode; teamId: number | null };
+}
+
+function GameRow({ game, historyContext }: GameRowProps) {
   const score = formatScore(game);
   const live = isLiveStatus(game.status);
+  const href = buildGameDetailHref(game.game_pk, {
+    date: historyContext.view === "date" ? historyContext.date : undefined,
+    view: historyContext.view,
+    teamId: historyContext.view === "team" ? historyContext.teamId : undefined,
+  });
 
   return (
     <Link
-      href={`/games/${game.game_pk}`}
+      href={href}
       className="flex items-center justify-between gap-4 border-b border-border/60 px-4 py-3 transition-colors hover:bg-hover"
     >
       <div className="min-w-0 flex-1">
@@ -72,11 +87,13 @@ function GamesList({
   isLoading,
   error,
   emptyMessage,
+  historyContext,
 }: {
   games: Game[];
   isLoading: boolean;
   error: string | null;
   emptyMessage: string;
+  historyContext: { date: string; view: ViewMode; teamId: number | null };
 }) {
   if (isLoading) {
     return (
@@ -113,7 +130,7 @@ function GamesList({
   return (
     <div className="divide-y divide-neutral-800/60">
       {games.map((game) => (
-        <GameRow key={game.game_pk} game={game} />
+        <GameRow key={game.game_pk} game={game} historyContext={historyContext} />
       ))}
     </div>
   );
@@ -124,11 +141,48 @@ export function GameHistoryBrowser({
   initialTeamId = null,
   initialView = "date",
 }: GameHistoryBrowserProps) {
-  const today = getLocalCalendarDate();
-  const maxDate = getMLBScheduleDate();
+  const router = useRouter();
+  const today = getMLBScheduleDate();
+  const maxDate = today;
   const [view, setView] = useState<ViewMode>(initialView);
   const [selectedDate, setSelectedDate] = useState(initialDate ?? today);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(initialTeamId);
+
+  const syncUrl = useCallback(
+    (next: { date?: string; teamId?: number | null; view?: ViewMode }) => {
+      const href = buildSeasonHistoryHref({
+        date: next.date,
+        view: next.view,
+        teamId: next.teamId,
+      });
+      router.replace(href, { scroll: false });
+    },
+    [router],
+  );
+
+  const handleViewChange = (mode: ViewMode) => {
+    setView(mode);
+    syncUrl({
+      view: mode,
+      date: selectedDate,
+      teamId: selectedTeamId,
+    });
+  };
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    syncUrl({ view: "date", date });
+  };
+
+  const handleTeamChange = (teamId: number | null) => {
+    setSelectedTeamId(teamId);
+    syncUrl({ view: "team", teamId });
+  };
+
+  const historyContext = useMemo(
+    () => ({ date: selectedDate, view, teamId: selectedTeamId }),
+    [selectedDate, view, selectedTeamId],
+  );
 
   const dateQuery = useGamesByDate(selectedDate);
   const teamQuery = useGamesByTeam(selectedTeamId);
@@ -188,7 +242,7 @@ export function GameHistoryBrowser({
               <button
                 key={mode}
                 type="button"
-                onClick={() => setView(mode)}
+                onClick={() => handleViewChange(mode)}
                 className={cn(
                   "rounded-md px-3 py-1.5 text-sm transition-colors",
                   view === mode
@@ -210,7 +264,7 @@ export function GameHistoryBrowser({
                 type="date"
                 value={selectedDate}
                 max={maxDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
+                onChange={(event) => handleDateChange(event.target.value)}
                 className="rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-muted"
               />
             </label>
@@ -221,7 +275,7 @@ export function GameHistoryBrowser({
                 value={selectedTeamId ?? ""}
                 onChange={(event) => {
                   const value = event.target.value;
-                  setSelectedTeamId(value ? Number.parseInt(value, 10) : null);
+                  handleTeamChange(value ? Number.parseInt(value, 10) : null);
                 }}
                 className="min-w-[240px] rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-muted"
               >
@@ -255,6 +309,7 @@ export function GameHistoryBrowser({
             games={replayableGames}
             isLoading={activeQuery.isLoading}
             error={activeQuery.error}
+            historyContext={historyContext}
             emptyMessage={
               view === "date"
                 ? "No completed games on this date. Scheduled games appear after they are played."

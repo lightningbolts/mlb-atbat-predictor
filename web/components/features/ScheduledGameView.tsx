@@ -2,20 +2,31 @@ import Link from "next/link";
 
 import { AppNav } from "@/components/features/AppNav";
 import { formatGameDate, formatMatchup, gameStatusLabel } from "@/lib/games/format";
+import { buildSeasonHistoryHref } from "@/lib/mlb/schedule";
 import type { Game } from "@/types/database";
 
 interface ScheduledGameViewProps {
   game: Game;
+  historyBack?: {
+    date?: string;
+    view?: "date" | "team";
+    teamId?: number | null;
+  };
 }
 
-export function ScheduledGameView({ game }: ScheduledGameViewProps) {
+export function ScheduledGameView({ game, historyBack }: ScheduledGameViewProps) {
+  const seasonHistoryHref = buildSeasonHistoryHref({
+    date: historyBack?.date ?? game.game_date,
+    view: historyBack?.view ?? "date",
+    teamId: historyBack?.teamId,
+  });
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
 
       <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4 py-12 text-center">
         <Link
-          href="/games"
+          href={seasonHistoryHref}
           className="mb-8 text-xs text-muted transition-colors hover:text-secondary"
         >
           ← Season history

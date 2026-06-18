@@ -286,7 +286,7 @@ function NoGamesState({ scheduleError }: { scheduleError?: string | null }) {
       <div className="flex flex-1 items-center justify-center px-6">
         <div className="max-w-sm text-center">
           <h1 className="text-lg font-medium text-foreground">No games on the board</h1>
-          <p className="mt-2 text-sm text-muted">Nothing live or upcoming today.</p>
+          <p className="mt-2 text-sm text-muted">No live or scheduled games on today&apos;s slate.</p>
           {scheduleError && <p className="mt-4 text-sm text-red-400/80">{scheduleError}</p>}
         </div>
       </div>

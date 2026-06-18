@@ -24,6 +24,7 @@ import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/games/format";
+import { buildSeasonHistoryHref } from "@/lib/mlb/schedule";
 import { gameStateForAtBat } from "@/lib/games/replay";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,11 @@ import type { PlayByPlayEntry } from "@/types/mlb-live";
 
 interface HistoricalGameDashboardProps {
   game: Game;
+  historyBack?: {
+    date?: string;
+    view?: "date" | "team";
+    teamId?: number | null;
+  };
 }
 
 function Panel({
@@ -52,7 +58,7 @@ function Panel({
   );
 }
 
-export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) {
+export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDashboardProps) {
   const isLive = isLiveStatus(game.status);
   const { gameState, isLoading, error, source, feedSyncedAt } = useGameState(game.game_pk, {
     poll: isLive,
@@ -125,6 +131,11 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
   );
 
   const score = formatScore(game);
+  const seasonHistoryHref = buildSeasonHistoryHref({
+    date: historyBack?.date ?? game.game_date,
+    view: historyBack?.view ?? "date",
+    teamId: historyBack?.teamId,
+  });
   const showBatterHighlights =
     isLive &&
     gameState != null &&
@@ -139,7 +150,7 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Link
-              href="/games"
+              href={seasonHistoryHref}
               className="text-xs text-muted transition-colors hover:text-secondary"
             >
               ← Season history

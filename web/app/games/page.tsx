@@ -1,5 +1,5 @@
 import { GameHistoryBrowser } from "@/components/features/GameHistoryBrowser";
-import { getLocalCalendarDate } from "@/lib/mlb/schedule";
+import { getMLBScheduleDate } from "@/lib/mlb/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export default async function GamesPage({ searchParams }: GamesPageProps) {
 
   return (
     <GameHistoryBrowser
-      initialDate={resolvedSearchParams.date ?? getLocalCalendarDate()}
+      initialDate={resolvedSearchParams.date ?? getMLBScheduleDate()}
       initialTeamId={Number.isFinite(teamId) ? teamId : null}
       initialView={initialView}
     />

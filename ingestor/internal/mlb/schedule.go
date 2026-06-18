@@ -191,6 +191,23 @@ func PreviousScheduleDate(date string) string {
 	return t.AddDate(0, 0, -1).Format("2006-01-02")
 }
 
+// RecentScheduleDates returns `days` consecutive ET calendar dates ending at date,
+// oldest first. Used to backfill missed schedule syncs when the ingestor was offline.
+func RecentScheduleDates(date string, days int) []string {
+	if days < 1 {
+		days = 1
+	}
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return []string{date}
+	}
+	dates := make([]string, 0, days)
+	for i := days - 1; i >= 0; i-- {
+		dates = append(dates, t.AddDate(0, 0, -i).Format("2006-01-02"))
+	}
+	return dates
+}
+
 // FetchLiveGamePKs returns game primary keys that are currently Live according
 // to the MLB schedule endpoint. Checks today and yesterday's ET slates so
 // west-coast games after midnight ET are still discovered.

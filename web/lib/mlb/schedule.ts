@@ -66,13 +66,20 @@ function sortGames(a: ActiveGame, b: ActiveGame): number {
   return new Date(a.gameDate).getTime() - new Date(b.gameDate).getTime();
 }
 
-function isTrackedNow(game: MLBScheduleGame, now = Date.now()): boolean {
+function isTrackedNow(
+  game: MLBScheduleGame,
+  options: { now?: number; isTodaySlate?: boolean } = {},
+): boolean {
+  const { now = Date.now(), isTodaySlate = true } = options;
   const status = game.status.abstractGameState;
   if (!TRACKED_GAME_STATUSES.has(status)) return false;
   if (LIVE_GAME_STATUSES.has(status)) return true;
   if (status === "Warmup" || status === "Pre-Game" || status === "Delayed") return true;
 
   if (status === "Preview") {
+    // Today's full slate is always visible; only apply the preview window to
+    // carryover games from yesterday's ET date (west-coast night games).
+    if (isTodaySlate) return true;
     const startMs = new Date(game.gameDate).getTime();
     return startMs - now <= PREVIEW_WINDOW_MS;
   }
@@ -114,9 +121,12 @@ export async function fetchActiveGames(scheduleDate?: string): Promise<ActiveGam
 
   const byPk = new Map<number, MLBScheduleGame>();
 
+  const yesterdayPk = new Set<number>();
+
   for (const game of yesterdayGames) {
     if (CARRYOVER_STATUSES.has(game.status.abstractGameState)) {
       byPk.set(game.gamePk, game);
+      yesterdayPk.add(game.gamePk);
     }
   }
 
@@ -125,7 +135,9 @@ export async function fetchActiveGames(scheduleDate?: string): Promise<ActiveGam
   }
 
   return [...byPk.values()]
-    .filter(isTrackedNow)
+    .filter((game) =>
+      isTrackedNow(game, { isTodaySlate: !yesterdayPk.has(game.gamePk) }),
+    )
     .map(toActiveGame)
     .sort(sortGames);
 }
@@ -143,3 +155,38 @@ export function previousScheduleDate(date: string): string {
 
 /** Statuses still active on a prior slate that should appear on the next day. */
 export const ACTIVE_CARRYOVER_STATUSES = CARRYOVER_STATUSES;
+
+/** Build a Season History URL that preserves browse position. */
+export function buildSeasonHistoryHref(options: {
+  date?: string;
+  view?: "date" | "team";
+  teamId?: number | null;
+}): string {
+  const params = new URLSearchParams();
+  if (options.view === "team" && options.teamId) {
+    params.set("teamId", String(options.teamId));
+    params.set("view", "team");
+  } else if (options.date) {
+    params.set("date", options.date);
+    params.set("view", "date");
+  }
+  const qs = params.toString();
+  return qs ? `/games?${qs}` : "/games";
+}
+
+/** Build a game detail URL that carries Season History context for back navigation. */
+export function buildGameDetailHref(
+  gamePk: number,
+  history?: { date?: string; view?: "date" | "team"; teamId?: number | null },
+): string {
+  const params = new URLSearchParams();
+  if (history?.view === "team" && history.teamId) {
+    params.set("teamId", String(history.teamId));
+    params.set("view", "team");
+  } else if (history?.date) {
+    params.set("date", history.date);
+    params.set("view", "date");
+  }
+  const qs = params.toString();
+  return qs ? `/games/${gamePk}?${qs}` : `/games/${gamePk}`;
+}
