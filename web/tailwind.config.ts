@@ -39,10 +39,16 @@ const config: Config = {
           from: { opacity: "0.82", transform: "translateY(2px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        playIn: {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "60%": { opacity: "0.85", transform: "translateY(-1px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         pulse_slow: "pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         pitch_in: "pitchIn 0.16s ease-out forwards",
+        play_in: "playIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards",
       },
     },
   },

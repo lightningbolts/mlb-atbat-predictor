@@ -19,9 +19,15 @@ export interface UseOutcomeOddsResult {
   source: "ingestor" | "client" | "none";
 }
 
+function hasNonZeroProbabilities(probs: OutcomeProbabilities): boolean {
+  return Object.values(probs).some((v) => v > 0);
+}
+
 /**
  * Instant per-pitch outcome odds derived from the live feed count, with
- * ingestor rows preferred when they match. No network — runs in the same
+ * ingestor rows (real ML model output) preferred when they match.
+ * Falls back to the client-side heuristic model for all counts including 0-0
+ * so that baseline odds are always visible. No network — runs in the same
  * render as pitch updates.
  */
 export function useOutcomeOdds(
@@ -58,7 +64,7 @@ export function useOutcomeOdds(
 
     const oddsKey = `${atBatViewState.batterId ?? 0}-${balls}-${strikes}-${pitchCount}`;
 
-    if (ingestorMatch) {
+    if (ingestorMatch && hasNonZeroProbabilities(ingestorMatch.outcome_probabilities)) {
       return {
         probabilities: ingestorMatch.outcome_probabilities,
         matchedPrediction: ingestorMatch,
@@ -67,20 +73,11 @@ export function useOutcomeOdds(
       };
     }
 
-    if (pitchCount === 0 && balls === 0 && strikes === 0) {
-      return {
-        probabilities: DEFAULT_OUTCOME_PROBABILITIES,
-        matchedPrediction: null,
-        oddsKey,
-        source: "none" as const,
-      };
-    }
-
     return {
       probabilities: predictClientOutcomeOdds(balls, strikes, pitchCount, seed),
-      matchedPrediction: null,
+      matchedPrediction: ingestorMatch,
       oddsKey,
-      source: "client" as const,
+      source: ingestorMatch ? "ingestor" as const : "client" as const,
     };
   }, [atBatViewState, predictions]);
 }

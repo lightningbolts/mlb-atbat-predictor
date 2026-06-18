@@ -143,7 +143,7 @@ function ThreeOutsBlurb({
     <div
       className={cn(
         "flex items-center gap-2 border-t border-border/40 bg-overlay px-3 py-2",
-        animate && "animate-pitch_in",
+        animate && "animate-play_in",
       )}
     >
       <BaseDiamond
@@ -199,7 +199,7 @@ function PlayOutcomeCard({
   const contact = compactContactLine(play.detail.hit);
 
   return (
-    <div className={cn(animate && "animate-pitch_in")}>
+    <div className={cn(animate && "animate-play_in")}>
       {showSituation && (
         <SituationMarker
           situation={play.situationBefore}

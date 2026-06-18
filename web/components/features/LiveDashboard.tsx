@@ -248,7 +248,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
 
                 <Panel title="Outcome odds" className="min-h-[160px] shrink-0 lg:flex-1">
                   <div className="flex min-h-0 flex-1 flex-col">
-                    {atBatViewState && (atBatViewState.atBatPitches.length > 0 || atBatViewState.balls > 0 || atBatViewState.strikes > 0) ? (
+                    {atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
                       <ProbabilityChart
                         key={oddsKey}
                         probabilities={probabilities}
@@ -258,7 +258,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                     ) : (
                       <p className="py-4 text-center text-sm text-muted">
                         {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")
-                          ? "Waiting for first pitch…"
+                          ? showBreakUI ? "Between innings" : "Waiting for at-bat…"
                           : "Available when live."}
                       </p>
                     )}

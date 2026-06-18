@@ -5,10 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   appendPlayByPlay,
   createPlayByPlayParseState,
-  fetchLivePlayChunk,
-  fetchLiveSnapshot,
+  fetchDirectSnapshot,
+  fetchLiveSnapshotWithPlays,
   liveStateFingerprint,
   parseStateFromSnapshot,
+  type LiveSnapshotWithPlays,
   type PlayByPlayParseState,
 } from "@/lib/mlb/liveFeed";
 import type { LiveGameState } from "@/types/mlb-live";
@@ -17,6 +18,12 @@ import { useChainedPoll } from "./useChainedPoll";
 
 /** Minimum gap between live polls — chained so slow responses don't stack. */
 const LIVE_FEED_MIN_GAP_MS = 100;
+
+/** If the proxy responds slower than this, switch to direct MLB CDN fetch. */
+const SLOW_RESPONSE_THRESHOLD_MS = 1_500;
+
+/** Number of consecutive slow responses before switching to direct. */
+const SLOW_RESPONSE_COUNT_THRESHOLD = 2;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
@@ -40,7 +47,8 @@ function isAbortError(err: unknown): boolean {
 
 /**
  * Polls a compact live snapshot for pitch updates and incrementally extends play-by-play.
- * Avoids re-downloading and re-parsing the full MLB feed on every poll as the game grows.
+ * Uses a single combined request (snapshot + plays) to minimize latency.
+ * Falls back to direct MLB CDN fetch if the proxy is consistently slow.
  */
 export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
@@ -51,6 +59,9 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const parseStateRef = useRef<PlayByPlayParseState>(createPlayByPlayParseState());
   const wasBreakRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const slowCountRef = useRef(0);
+  const useDirectRef = useRef(false);
+  const pendingPlaysRef = useRef(false);
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
@@ -60,36 +71,63 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     const { signal } = controller;
 
     try {
-      const snapshot = await fetchLiveSnapshot(gamePk, signal);
-      if (generation !== generationRef.current) return;
+      const needsPlays =
+        pendingPlaysRef.current ||
+        parseStateRef.current.entries.length === 0;
 
-      const allPlaysCount = snapshot.allPlaysCount;
-      const inningState = snapshot.linescore.inningState ?? "";
-      const isBreak = /^(middle|end)$/i.test(inningState);
-      const enteringBreak = isBreak && !wasBreakRef.current;
-      wasBreakRef.current = isBreak;
+      const playsFrom = needsPlays ? parseStateRef.current.rawPlayCount : null;
 
-      const needsPlayChunk =
-        allPlaysCount > parseStateRef.current.rawPlayCount ||
-        (parseStateRef.current.entries.length === 0 && allPlaysCount > 0) ||
-        enteringBreak;
+      const started = performance.now();
+      let result: LiveSnapshotWithPlays;
 
-      if (needsPlayChunk) {
-        const chunk = await fetchLivePlayChunk(
-          gamePk,
-          parseStateRef.current.rawPlayCount,
-          signal,
-        );
-        if (generation !== generationRef.current) return;
+      if (useDirectRef.current) {
+        result = await fetchDirectSnapshot(gamePk, playsFrom, signal);
+      } else {
+        result = await fetchLiveSnapshotWithPlays(gamePk, playsFrom, signal);
+      }
 
-        if (chunk.plays.length > 0) {
-          parseStateRef.current = appendPlayByPlay(parseStateRef.current, chunk.plays);
+      const elapsed = performance.now() - started;
+
+      if (!useDirectRef.current) {
+        if (elapsed > SLOW_RESPONSE_THRESHOLD_MS) {
+          slowCountRef.current += 1;
+          if (slowCountRef.current >= SLOW_RESPONSE_COUNT_THRESHOLD) {
+            useDirectRef.current = true;
+          }
+        } else {
+          slowCountRef.current = Math.max(0, slowCountRef.current - 1);
         }
       }
 
       if (generation !== generationRef.current) return;
 
-      const next = parseStateFromSnapshot(snapshot, parseStateRef.current.entries);
+      const allPlaysCount = result.allPlaysCount;
+      const inningState = result.linescore.inningState ?? "";
+      const isBreak = /^(middle|end)$/i.test(inningState);
+      const enteringBreak = isBreak && !wasBreakRef.current;
+      wasBreakRef.current = isBreak;
+
+      const hasNewPlays = allPlaysCount > parseStateRef.current.rawPlayCount;
+      const playChunkNeeded =
+        hasNewPlays ||
+        (parseStateRef.current.entries.length === 0 && allPlaysCount > 0) ||
+        enteringBreak;
+
+      if (result.plays && result.plays.plays.length > 0) {
+        const prevCount = parseStateRef.current.rawPlayCount;
+        parseStateRef.current = appendPlayByPlay(parseStateRef.current, result.plays.plays);
+        const processedAll =
+          parseStateRef.current.rawPlayCount >= prevCount + result.plays.plays.length;
+        pendingPlaysRef.current = !processedAll;
+      } else if (playChunkNeeded && !result.plays) {
+        pendingPlaysRef.current = true;
+      } else {
+        pendingPlaysRef.current = allPlaysCount > parseStateRef.current.rawPlayCount;
+      }
+
+      if (generation !== generationRef.current) return;
+
+      const next = parseStateFromSnapshot(result, parseStateRef.current.entries);
       setGameState((prev) => applyGameState(prev, next));
       setError(null);
     } catch (err) {
@@ -112,6 +150,9 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     abortRef.current?.abort();
     parseStateRef.current = createPlayByPlayParseState();
     wasBreakRef.current = false;
+    slowCountRef.current = 0;
+    useDirectRef.current = false;
+    pendingPlaysRef.current = false;
     setGameState(null);
     setIsLoading(true);
     setError(null);

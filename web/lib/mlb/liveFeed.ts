@@ -572,9 +572,17 @@ export function createPlayByPlayParseState(): PlayByPlayParseState {
   };
 }
 
+/** Returns true if a play is clearly incomplete (no result yet, still in-progress). */
+function isIncompletePlay(play: AllPlayRaw): boolean {
+  const event = play.result?.event;
+  const desc = play.result?.description;
+  return !event && !desc && play.about?.isComplete !== true;
+}
+
 function parsePlayEntry(
   play: AllPlayRaw,
   state: PlayByPlayParseState,
+  isLast: boolean,
 ): PlayByPlayParseState {
   const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
   let situation = state.situation;
@@ -596,6 +604,9 @@ function parsePlayEntry(
 
   const detail = parsePlayDetail(play, batterLine, batterId);
   if (!detail) {
+    if (isLast && isIncompletePlay(play)) {
+      return { ...state, situation, currentHalf };
+    }
     return {
       ...state,
       situation,
@@ -640,8 +651,8 @@ export function appendPlayByPlay(
   rawPlays: AllPlayRaw[],
 ): PlayByPlayParseState {
   let next = state;
-  for (const play of rawPlays) {
-    next = parsePlayEntry(play, next);
+  for (let i = 0; i < rawPlays.length; i++) {
+    next = parsePlayEntry(rawPlays[i], next, i === rawPlays.length - 1);
   }
   return next;
 }
@@ -765,27 +776,45 @@ export async function fetchMLBLiveFeed(
   return (await response.json()) as MLBLiveFeedResponse;
 }
 
-/** Small live snapshot for fast pitch polling (served from cached MLB feed). */
-export async function fetchLiveSnapshot(
+export interface LivePlayChunk {
+  from: number;
+  total: number;
+  plays: AllPlayRaw[];
+}
+
+export interface LiveSnapshotWithPlays extends LiveFeedSnapshot {
+  plays?: LivePlayChunk;
+}
+
+/**
+ * Fetch a compact snapshot + optional incremental play chunk in a single request.
+ * Pass `playsFrom` to include new plays since that index (one round-trip).
+ */
+export async function fetchLiveSnapshotWithPlays(
   gamePk: number,
+  playsFrom: number | null,
   signal?: AbortSignal,
-): Promise<LiveFeedSnapshot> {
-  const response = await fetch(`/api/game/${gamePk}/live/snapshot`, {
-    cache: "no-store",
-    signal,
-  });
+): Promise<LiveSnapshotWithPlays> {
+  const url =
+    playsFrom != null
+      ? `/api/game/${gamePk}/live/snapshot?playsFrom=${playsFrom}`
+      : `/api/game/${gamePk}/live/snapshot`;
+
+  const response = await fetch(url, { cache: "no-store", signal });
 
   if (!response.ok) {
     throw new Error(`Live snapshot failed: ${response.status}`);
   }
 
-  return (await response.json()) as LiveFeedSnapshot;
+  return (await response.json()) as LiveSnapshotWithPlays;
 }
 
-export interface LivePlayChunk {
-  from: number;
-  total: number;
-  plays: AllPlayRaw[];
+/** Small live snapshot for fast pitch polling (served from cached MLB feed). */
+export async function fetchLiveSnapshot(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<LiveFeedSnapshot> {
+  return fetchLiveSnapshotWithPlays(gamePk, null, signal);
 }
 
 /** Fetch only new raw plays since `from` (incremental play-by-play). */
@@ -804,6 +833,29 @@ export async function fetchLivePlayChunk(
   }
 
   return (await response.json()) as LivePlayChunk;
+}
+
+/**
+ * Direct-to-MLB snapshot builder for when we want to bypass the proxy.
+ * Fetches the full feed from MLB CDN and extracts a snapshot client-side.
+ */
+export async function fetchDirectSnapshot(
+  gamePk: number,
+  playsFrom: number | null,
+  signal?: AbortSignal,
+): Promise<LiveSnapshotWithPlays> {
+  const feed = await fetchMLBLiveFeed(gamePk, signal);
+  const snapshot = buildLiveFeedSnapshot(gamePk, feed);
+
+  if (playsFrom != null) {
+    const allPlays = feed.liveData.plays.allPlays ?? [];
+    return {
+      ...snapshot,
+      plays: { from: playsFrom, total: allPlays.length, plays: allPlays.slice(playsFrom) },
+    };
+  }
+
+  return snapshot;
 }
 
 /** Build a compact snapshot from a full MLB feed. */
