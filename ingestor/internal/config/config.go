@@ -46,6 +46,15 @@ type Config struct {
 
 	// HTTPRetryBaseDelay is the starting delay for exponential backoff.
 	HTTPRetryBaseDelay time.Duration
+
+	// PredictorBackend selects inference: "mock" (heuristic) or "ml" (ml-engine HTTP).
+	PredictorBackend string
+
+	// MLEngineURL is the base URL for the ml-engine serve.py process (e.g. http://127.0.0.1:8765).
+	MLEngineURL string
+
+	// MLEngineTimeout bounds a single /predict request including model inference.
+	MLEngineTimeout time.Duration
 }
 
 // Load reads configuration from the process environment and applies sensible
@@ -62,6 +71,17 @@ func Load() (*Config, error) {
 		HTTPClientTimeout:  durationFromEnv("HTTP_CLIENT_TIMEOUT", 10*time.Second),
 		HTTPMaxRetries:     intFromEnv("HTTP_MAX_RETRIES", 3),
 		HTTPRetryBaseDelay: durationFromEnv("HTTP_RETRY_BASE_DELAY", 500*time.Millisecond),
+		MLEngineURL:        strings.TrimRight(strings.TrimSpace(envOrDefault("ML_ENGINE_URL", "http://127.0.0.1:8765")), "/"),
+		MLEngineTimeout:    durationFromEnv("ML_ENGINE_TIMEOUT", 2*time.Second),
+	}
+
+	cfg.PredictorBackend = strings.ToLower(strings.TrimSpace(envOrDefault("PREDICTOR_BACKEND", "")))
+	if cfg.PredictorBackend == "" {
+		if boolFromEnv("USE_MOCK_PREDICTOR", false) {
+			cfg.PredictorBackend = "mock"
+		} else {
+			cfg.PredictorBackend = "ml"
+		}
 	}
 
 	gamePKs, err := parseGamePKs(os.Getenv("GAME_PKS"))

@@ -1,5 +1,5 @@
 // Command ingestor polls the MLB Stats API for live games, detects at-bat state
-// changes, runs ML inference (mock for now), and writes predictions to Supabase.
+// changes, runs ML inference via ml-engine (or mock), and writes predictions to Supabase.
 package main
 
 import (
@@ -94,6 +94,8 @@ func run(logger *slog.Logger) error {
 		"poll_interval", cfg.PollInterval.String(),
 		"schedule_refresh", cfg.ScheduleRefreshInterval.String(),
 		"mlb_api", cfg.MLBAPIBaseURL,
+		"predictor_backend", cfg.PredictorBackend,
+		"ml_engine_url", cfg.MLEngineURL,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,7 +123,22 @@ func run(logger *slog.Logger) error {
 		BaseDelay:  cfg.HTTPRetryBaseDelay,
 	})
 
-	pred := predictor.NewMockPredictor()
+	pred, err := predictor.NewFromConfig(cfg.PredictorBackend, cfg.MLEngineURL, cfg.MLEngineTimeout)
+	if err != nil {
+		return fmt.Errorf("init predictor: %w", err)
+	}
+	if mlPred, ok := pred.(*predictor.MLEnginePredictor); ok {
+		pingCtx, cancel := context.WithTimeout(ctx, cfg.MLEngineTimeout)
+		if err := mlPred.Ping(pingCtx); err != nil {
+			cancel()
+			return fmt.Errorf("ml-engine health check (%s): %w — start with: cd ml-engine && python serve.py", cfg.MLEngineURL, err)
+		}
+		cancel()
+		logger.Info("ml-engine ready", "url", cfg.MLEngineURL)
+	} else {
+		logger.Info("using mock predictor", "hint", "set PREDICTOR_BACKEND=ml for trained model")
+	}
+
 	tracker := mlb.NewStateTracker()
 	onChange := pipeline.StateChangeHandler(pred, repo, logger.With("component", "pipeline"))
 
