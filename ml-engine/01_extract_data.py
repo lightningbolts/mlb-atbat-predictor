@@ -32,6 +32,14 @@ def normalize_count(balls: int, strikes: int) -> tuple[int, int]:
     return min(int(balls or 0), 3), min(int(strikes or 0), 2)
 
 
+def pre_pitch_count(pitches: list[dict], pitch_index: int) -> tuple[int, int]:
+    """MLB pitch objects carry post-pitch count; return pre-pitch balls/strikes."""
+    if pitch_index <= 0:
+        return 0, 0
+    prev = pitches[pitch_index - 1]
+    return normalize_count(prev.get("balls", 0), prev.get("strikes", 0))
+
+
 def map_outcome(event_type: str | None) -> str | None:
     """Map MLB play event string to one of OUTCOME_KEYS, or None to drop."""
     if not event_type:
@@ -110,7 +118,7 @@ def extract_at_bats_from_state(
 
         last_pitch = pitches[-1]
         sit = _situation_fields(play, situation)
-        balls, strikes = normalize_count(last_pitch.get("balls", 0), last_pitch.get("strikes", 0))
+        balls, strikes = pre_pitch_count(pitches, len(pitches) - 1)
 
         rows.append({
             "game_pk": game_pk,
@@ -155,7 +163,7 @@ def extract_pitch_snapshots_from_state(
         sit = _situation_fields(play, situation)
 
         for i, pitch in enumerate(pitches):
-            balls, strikes = normalize_count(pitch.get("balls", 0), pitch.get("strikes", 0))
+            balls, strikes = pre_pitch_count(pitches, i)
             rows.append({
                 "game_pk": game_pk,
                 "game_date": game_date,

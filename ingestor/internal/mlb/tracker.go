@@ -61,10 +61,16 @@ func (t *StateTracker) PendingStates(base GameState, pitchEvents []PlayEvent) []
 	for i, ev := range unseen {
 		state := base
 		state.LastPlayEvent = ev.PlayID
-		state.PitchCount = pitchIndex(pitches, ev.PlayID)
+		idx := pitchIndex(pitches, ev.PlayID) - 1
+		state.PitchCount = idx + 1
+		if idx == 0 {
+			state.Balls = 0
+			state.Strikes = 0
+		} else if prev := pitches[idx-1].Count; prev != nil {
+			state.Balls = prev.Balls
+			state.Strikes = prev.Strikes
+		}
 		if ev.Count != nil {
-			state.Balls = ev.Count.Balls
-			state.Strikes = ev.Count.Strikes
 			state.Outs = ev.Count.Outs
 		}
 		if ev.PitchData != nil {
