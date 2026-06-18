@@ -19,7 +19,7 @@ export interface UseLivePredictionsResult {
   connectionStatus: ConnectionStatus;
 }
 
-const PREDICTION_POLL_MS = 1_000;
+const PREDICTION_POLL_MS = 500;
 
 function normalizePrediction(row: Record<string, unknown>): Prediction {
   const rawProbs = row.outcome_probabilities;

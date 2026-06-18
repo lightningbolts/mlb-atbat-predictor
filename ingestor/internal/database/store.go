@@ -24,6 +24,7 @@ type Store interface {
 	InsertPrediction(ctx context.Context, row PredictionRow) (uuid.UUID, error)
 	UpsertGames(ctx context.Context, rows []GameRow) error
 	UpdateGameFromPoll(ctx context.Context, gamePK int, status string, awayScore, homeScore int) error
+	UpdateLiveGameState(ctx context.Context, gamePK int, status string, awayScore, homeScore int, gameState []byte) error
 	UpdateGameFeed(ctx context.Context, gamePK int, update GameFeedUpdate) error
 	ListGamesNeedingFeedSync(ctx context.Context, sinceDate string, limit int) ([]int, error)
 	Close()

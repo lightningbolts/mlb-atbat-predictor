@@ -2,6 +2,7 @@ package mlb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -19,6 +20,7 @@ type OnGameEnd func(ctx context.Context, gamePK int, status string, awayScore, h
 // GameStore persists schedule metadata and live score/status updates.
 type GameStore interface {
 	UpdateGameFromPoll(ctx context.Context, gamePK int, status string, awayScore, homeScore int) error
+	UpdateLiveGameState(ctx context.Context, gamePK int, status string, awayScore, homeScore int, gameState []byte) error
 }
 
 // Worker polls a single game's live feed until context cancellation.
@@ -99,17 +101,31 @@ func (w *Worker) pollOnce(ctx context.Context, gamePK int, log *slog.Logger) err
 		return ctx.Err()
 	}
 
-	feed, err := w.client.FetchLiveFeed(ctx, gamePK)
+	rawFeed, err := w.client.FetchLiveFeedRaw(ctx, gamePK)
 	if err != nil {
 		return fmt.Errorf("fetch live feed: %w", err)
 	}
 
-	state := ToGameState(gamePK, feed)
+	var feed LiveFeed
+	if err := json.Unmarshal(rawFeed, &feed); err != nil {
+		return fmt.Errorf("unmarshal live feed: %w", err)
+	}
+
+	state := ToGameState(gamePK, &feed)
 	awayScore := feed.LiveData.Linescore.Teams.Away.Runs
 	homeScore := feed.LiveData.Linescore.Teams.Home.Runs
 
 	if w.games != nil {
-		if err := w.games.UpdateGameFromPoll(ctx, gamePK, state.GameStatus, awayScore, homeScore); err != nil {
+		if state.IsLive() {
+			wrapped, wrapErr := json.Marshal(map[string]json.RawMessage{
+				"mlbFeed": rawFeed,
+			})
+			if wrapErr != nil {
+				log.Error("failed to wrap live game state", "error", wrapErr)
+			} else if err := w.games.UpdateLiveGameState(ctx, gamePK, state.GameStatus, awayScore, homeScore, wrapped); err != nil {
+				log.Error("failed to update live game state", "error", err)
+			}
+		} else if err := w.games.UpdateGameFromPoll(ctx, gamePK, state.GameStatus, awayScore, homeScore); err != nil {
 			log.Error("failed to update game from poll", "error", err)
 		}
 	}
@@ -151,7 +167,8 @@ func (w *Worker) pollOnce(ctx context.Context, gamePK int, log *slog.Logger) err
 		)
 
 		if err := w.onChange(ctx, next); err != nil {
-			return fmt.Errorf("on state change: %w", err)
+			log.Error("state change handler failed", "error", err)
+			continue
 		}
 
 		w.tracker.Commit(next)

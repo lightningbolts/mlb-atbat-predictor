@@ -140,6 +140,29 @@ func (r *RestRepository) UpdateGameFromPoll(
 	return r.do(ctx, http.MethodPatch, path, payload, "return=minimal", nil)
 }
 
+func (r *RestRepository) UpdateLiveGameState(
+	ctx context.Context,
+	gamePK int,
+	status string,
+	awayScore, homeScore int,
+	gameState []byte,
+) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context already canceled: %w", ctx.Err())
+	}
+
+	payload := map[string]any{
+		"status":     status,
+		"away_score": awayScore,
+		"home_score": homeScore,
+		"game_state": json.RawMessage(gameState),
+		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
+	}
+
+	path := fmt.Sprintf("/rest/v1/games?game_pk=eq.%d", gamePK)
+	return r.do(ctx, http.MethodPatch, path, payload, "return=minimal", nil)
+}
+
 func (r *RestRepository) UpdateGameFeed(ctx context.Context, gamePK int, update GameFeedUpdate) error {
 	if ctx.Err() != nil {
 		return fmt.Errorf("context already canceled: %w", ctx.Err())

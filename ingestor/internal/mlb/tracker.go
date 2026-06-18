@@ -12,6 +12,7 @@ type StateTracker struct {
 	mu          sync.Mutex
 	lastPitchID map[int]string // gamePK -> last successfully processed pitch playId
 	lastStateFP map[int]string // gamePK -> fallback fingerprint for non-pitch changes
+	lastBatter  map[int]int    // gamePK -> batter ID for new-at-bat detection
 }
 
 // NewStateTracker creates an empty in-memory state store.
@@ -19,6 +20,7 @@ func NewStateTracker() *StateTracker {
 	return &StateTracker{
 		lastPitchID: make(map[int]string),
 		lastStateFP: make(map[int]string),
+		lastBatter:  make(map[int]int),
 	}
 }
 
@@ -27,6 +29,20 @@ func NewStateTracker() *StateTracker {
 // When there are no new pitches but count/matchup/base state changed, a single
 // state snapshot is returned. Returns nil when nothing new is observed.
 func (t *StateTracker) PendingStates(base GameState, pitchEvents []PlayEvent) []GameState {
+	t.mu.Lock()
+	prevBatter := t.lastBatter[base.GamePK]
+	newAtBat := prevBatter != 0 && prevBatter != base.BatterID
+	if newAtBat {
+		// MLB may briefly carry the previous AB's pitch events while the matchup
+		// already shows the next batter — reset so we don't miss the new AB.
+		delete(t.lastPitchID, base.GamePK)
+		base.LastPlayEvent = ""
+		base.PitchCount = 0
+		base.LastPitch = nil
+		pitchEvents = nil
+	}
+	t.mu.Unlock()
+
 	pitches := pitchEventsInOrder(pitchEvents)
 	if len(pitches) == 0 {
 		return t.pendingNonPitchState(base)
@@ -98,6 +114,9 @@ func (t *StateTracker) Commit(state GameState) {
 	if state.LastPlayEvent != "" {
 		t.lastPitchID[state.GamePK] = state.LastPlayEvent
 	}
+	if state.BatterID != 0 {
+		t.lastBatter[state.GamePK] = state.BatterID
+	}
 	t.lastStateFP[state.GamePK] = state.Fingerprint()
 }
 
@@ -107,6 +126,7 @@ func (t *StateTracker) Reset(gamePK int) {
 	defer t.mu.Unlock()
 	delete(t.lastPitchID, gamePK)
 	delete(t.lastStateFP, gamePK)
+	delete(t.lastBatter, gamePK)
 }
 
 func pitchEventsInOrder(events []PlayEvent) []PlayEvent {

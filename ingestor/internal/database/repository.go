@@ -264,6 +264,43 @@ func (r *Repository) UpdateGameFromPoll(
 	return nil
 }
 
+const updateLiveGameStateSQL = `
+UPDATE games SET
+    status = $2,
+    away_score = $3,
+    home_score = $4,
+    game_state = $5::jsonb,
+    updated_at = $6
+WHERE game_pk = $1;
+`
+
+// UpdateLiveGameState writes the current live feed snapshot for real-time consumers.
+func (r *Repository) UpdateLiveGameState(
+	ctx context.Context,
+	gamePK int,
+	status string,
+	awayScore, homeScore int,
+	gameState []byte,
+) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context already canceled: %w", ctx.Err())
+	}
+
+	_, err := r.pool.Exec(ctx, updateLiveGameStateSQL,
+		gamePK,
+		status,
+		awayScore,
+		homeScore,
+		gameState,
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return fmt.Errorf("update live game state %d: %w", gamePK, err)
+	}
+
+	return nil
+}
+
 const updateGameFeedSQL = `
 UPDATE games SET
     game_state = $2::jsonb,

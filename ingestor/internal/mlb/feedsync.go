@@ -132,7 +132,7 @@ func CacheGameFeed(
 			return ctx.Err()
 		}
 
-		raw, err := client.FetchLiveFeedRaw(ctx, gamePK)
+		raw, err := client.FetchLiveFeedRawFull(ctx, gamePK)
 		if err != nil {
 			return fmt.Errorf("fetch live feed: %w", err)
 		}
