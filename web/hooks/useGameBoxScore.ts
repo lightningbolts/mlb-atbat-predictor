@@ -29,7 +29,10 @@ export function useGameBoxScore(
 
   const fetchBoxScore = useCallback(async () => {
     try {
-      const response = await fetch(`/api/games/${gamePk}/boxscore`, { cache: "no-store" });
+      const query = shouldPoll ? "?live=1" : "";
+      const response = await fetch(`/api/games/${gamePk}/boxscore${query}`, {
+        cache: "no-store",
+      });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `Box score error ${response.status}`);
@@ -50,7 +53,7 @@ export function useGameBoxScore(
     } finally {
       setIsLoading(false);
     }
-  }, [gamePk]);
+  }, [gamePk, shouldPoll]);
 
   useEffect(() => {
     if (!gamePk) {

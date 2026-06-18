@@ -197,7 +197,7 @@ function parsePitchingTotals(team: BoxScoreTeamRaw): PitchingTotals | null {
   };
 }
 
-function parseTeamBoxScore(team: BoxScoreTeamRaw): TeamBoxScore {
+function parseTeamBoxScore(team: BoxScoreTeamRaw, abbrevFallback?: string): TeamBoxScore {
   const batters: BatterBoxLine[] = [];
   for (const playerId of team.batters ?? []) {
     const player = getPlayer(team, playerId);
@@ -230,7 +230,7 @@ function parseTeamBoxScore(team: BoxScoreTeamRaw): TeamBoxScore {
 
   return {
     teamId: team.team?.id ?? 0,
-    abbrev: team.team?.abbreviation ?? "—",
+    abbrev: team.team?.abbreviation ?? abbrevFallback ?? "—",
     name: team.team?.name ?? "—",
     batters,
     pitchers,
@@ -321,14 +321,16 @@ export function parseBoxScore(gamePk: number, feed: BoxScoreFeedRaw): GameBoxSco
 
   const teams = feed.gameData.teams;
   const isFinal = feed.gameData.status?.abstractGameState === "Final";
+  const awayAbbrev = teams.away.abbreviation ?? teams.away.name.slice(0, 3).toUpperCase();
+  const homeAbbrev = teams.home.abbreviation ?? teams.home.name.slice(0, 3).toUpperCase();
 
   return {
     gamePk,
-    awayAbbrev: teams.away.abbreviation ?? teams.away.name.slice(0, 3).toUpperCase(),
-    homeAbbrev: teams.home.abbreviation ?? teams.home.name.slice(0, 3).toUpperCase(),
+    awayAbbrev,
+    homeAbbrev,
     lineScore: parseLineScore(feed, isFinal),
-    away: parseTeamBoxScore(boxscore.teams.away),
-    home: parseTeamBoxScore(boxscore.teams.home),
+    away: parseTeamBoxScore(boxscore.teams.away, awayAbbrev),
+    home: parseTeamBoxScore(boxscore.teams.home, homeAbbrev),
     decisions: parseDecisions(feed),
     info: parseGameInfo(feed),
     observedAt: new Date().toISOString(),
