@@ -23,6 +23,7 @@ supabase: Client = create_client(url, key)
 DATA_DIR = Path(__file__).parent / "data"
 AT_BATS_PATH = DATA_DIR / "at_bats.parquet"
 AT_BAT_PITCHES_PATH = DATA_DIR / "at_bat_pitches.parquet"
+PLAYER_HANDS_PATH = DATA_DIR / "player_hands.parquet"
 PAGE_SIZE = 1000
 GAME_STATE_BATCH = 25
 
@@ -94,6 +95,27 @@ def _situation_fields(play: dict, situation: dict) -> dict:
         "home_score": situation.get("homeScore", 0),
     }
 
+def _hands_lookup() -> pd.DataFrame:
+    """player_id -> bat_side / pitch_hand (L/R/S). Built by 04_fetch_player_stats.py."""
+    if not PLAYER_HANDS_PATH.exists():
+        return pd.DataFrame(columns=["player_id", "bat_side", "pitch_hand"])
+    return pd.read_parquet(PLAYER_HANDS_PATH)
+
+
+def _join_hands(df: pd.DataFrame) -> pd.DataFrame:
+    hands = _hands_lookup()
+    if hands.empty:
+        df["batter_hand"] = ""
+        df["pitcher_hand"] = ""
+        return df
+
+    bat = hands.rename(columns={"player_id": "batter_id", "bat_side": "batter_hand"})
+    pit = hands.rename(columns={"player_id": "pitcher_id", "pitch_hand": "pitcher_hand"})
+    df = df.merge(bat[["batter_id", "batter_hand"]], on="batter_id", how="left")
+    df = df.merge(pit[["pitcher_id", "pitcher_hand"]], on="pitcher_id", how="left")
+    df["batter_hand"] = df["batter_hand"].fillna("")
+    df["pitcher_hand"] = df["pitcher_hand"].fillna("")
+    return df
 
 def extract_at_bats_from_state(
     game_pk: int,

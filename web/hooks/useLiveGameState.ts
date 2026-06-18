@@ -47,6 +47,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const playsRef = useRef<PlayByPlayEntry[]>([]);
   const lastFullParseAtRef = useRef(0);
   const lastAllPlaysCountRef = useRef(0);
+  const wasBreakRef = useRef(false);
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
@@ -58,9 +59,15 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
       const now = Date.now();
       const allPlaysCount = feed.liveData.plays.allPlays?.length ?? 0;
       const newAtBatCompleted = allPlaysCount > lastAllPlaysCountRef.current;
+      const inningState = feed.liveData.linescore.inningState ?? "";
+      const isBreak = /^(middle|end)$/i.test(inningState);
+      const enteringBreak = isBreak && !wasBreakRef.current;
+      wasBreakRef.current = isBreak;
       const needsFullParse =
         playsRef.current.length === 0 ||
         newAtBatCompleted ||
+        enteringBreak ||
+        (isBreak && allPlaysCount > playsRef.current.length) ||
         now - lastFullParseAtRef.current >= FULL_PLAY_BY_PLAY_MS;
 
       const next = needsFullParse
@@ -97,6 +104,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     playsRef.current = [];
     lastFullParseAtRef.current = 0;
     lastAllPlaysCountRef.current = 0;
+    wasBreakRef.current = false;
     setGameState(null);
     setIsLoading(true);
     setError(null);

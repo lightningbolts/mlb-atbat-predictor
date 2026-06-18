@@ -212,6 +212,21 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                         </li>
                       ))}
                     </ul>
+                  ) : showBreakUI && gameState?.batterName && gameState.batterName !== "—" ? (
+                    <ul className="space-y-2">
+                      {[gameState.batterName, gameState.onDeckName, gameState.inHoleName]
+                        .filter((name) => name && name !== "—")
+                        .map((name, index) => (
+                          <li
+                            key={`${name}-${index}`}
+                            className="flex items-center gap-3 border border-border bg-surface-elevated px-3 py-2.5"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-foreground">{name}</p>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
                   ) : showBreakUI ? (
                     <p className="text-sm text-subtle">Loading due up…</p>
                   ) : (atBatViewState?.atBatPitches.length ?? 0) === 0 ? (

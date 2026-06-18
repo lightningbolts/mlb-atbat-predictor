@@ -4,24 +4,39 @@ import { useEffect, useRef, useState } from "react";
 
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
-import type { LiveGameState } from "@/types/mlb-live";
+import type { LiveGameState, PlayByPlayEntry, PlayPitch } from "@/types/mlb-live";
 
 export const BREAK_LINGER_MS = 2_000;
+/** Cap how long we wait for play-by-play to catch up before showing due-up UI. */
+const MAX_BREAK_WAIT_MS = 5_000;
 
 function breakKey(state: LiveGameState): string {
   return `${state.inning}-${state.inningState.toLowerCase()}`;
+}
+
+function mergeLingerPitches(
+  lastActive: LiveGameState | null,
+  lastPlay: PlayByPlayEntry | undefined,
+): PlayPitch[] {
+  const active = lastActive?.atBatPitches ?? [];
+  const play = lastPlay?.detail.pitches ?? [];
+  return play.length >= active.length ? play : active;
 }
 
 /** Reconstruct the just-finished at-bat when the feed jumps straight to a break. */
 function buildLingerState(
   gameState: LiveGameState,
   lastActive: LiveGameState | null,
-): LiveGameState {
+): LiveGameState | null {
   const lastPlay = gameState.plays.at(-1);
-  if (lastPlay && lastPlay.detail.pitches.length > 0) {
-    const lastPitch = lastPlay.detail.pitches.at(-1);
-    const base = lastActive ?? gameState;
+  const pitches = mergeLingerPitches(lastActive, lastPlay);
+  if (pitches.length === 0) return null;
 
+  const lastPitch = pitches.at(-1);
+  const usePlayMeta = lastPlay != null && lastPlay.detail.pitches.length >= (lastActive?.atBatPitches.length ?? 0);
+
+  if (usePlayMeta && lastPlay) {
+    const base = lastActive ?? gameState;
     return {
       ...base,
       batterId: lastPlay.batterId,
@@ -39,15 +54,21 @@ function buildLingerState(
       onThird: lastPlay.onThird,
       awayRuns: lastPlay.awayScore,
       homeRuns: lastPlay.homeScore,
-      atBatPitches: lastPlay.detail.pitches,
+      atBatPitches: pitches,
     };
   }
 
-  if (lastActive && lastActive.atBatPitches.length > 0) {
-    return { ...lastActive, inningState: lastActive.inningHalf };
+  if (lastActive) {
+    return {
+      ...lastActive,
+      inningState: lastActive.inningHalf,
+      balls: lastPitch?.balls ?? lastActive.balls,
+      strikes: lastPitch?.strikes ?? lastActive.strikes,
+      atBatPitches: pitches,
+    };
   }
 
-  return lastActive ?? gameState;
+  return null;
 }
 
 export interface BreakLingerResult {
@@ -74,24 +95,41 @@ export function useBreakLinger(gameState: LiveGameState | null): BreakLingerResu
     activeBreakKeyRef.current = null;
     lingerSnapshotRef.current = null;
     lingerStartedAtRef.current = 0;
-  } else if (gameState && currentBreakKey && activeBreakKeyRef.current !== currentBreakKey) {
-    activeBreakKeyRef.current = currentBreakKey;
-    lingerSnapshotRef.current = buildLingerState(gameState, lastActiveRef.current);
-    lingerStartedAtRef.current = Date.now();
+  } else if (gameState && currentBreakKey) {
+    const nextSnapshot = buildLingerState(gameState, lastActiveRef.current);
+    const prevPitchCount = lingerSnapshotRef.current?.atBatPitches.length ?? 0;
+    const nextPitchCount = nextSnapshot?.atBatPitches.length ?? 0;
+    const isNewBreak = activeBreakKeyRef.current !== currentBreakKey;
+
+    if (isNewBreak) {
+      activeBreakKeyRef.current = currentBreakKey;
+      lingerSnapshotRef.current = nextSnapshot;
+      lingerStartedAtRef.current = Date.now();
+    } else if (nextSnapshot && nextPitchCount > prevPitchCount) {
+      lingerSnapshotRef.current = nextSnapshot;
+      lingerStartedAtRef.current = Date.now();
+    } else if (!lingerSnapshotRef.current && nextSnapshot) {
+      lingerSnapshotRef.current = nextSnapshot;
+      lingerStartedAtRef.current = Date.now();
+    }
   }
 
+  const lingerAge = Date.now() - lingerStartedAtRef.current;
+  const lingerPitchCount = lingerSnapshotRef.current?.atBatPitches.length ?? 0;
   const isLingering =
     currentBreakKey != null &&
-    lingerSnapshotRef.current != null &&
-    Date.now() - lingerStartedAtRef.current < BREAK_LINGER_MS;
+    ((lingerPitchCount > 0 && lingerAge < BREAK_LINGER_MS) ||
+      (lingerPitchCount === 0 && lingerAge < MAX_BREAK_WAIT_MS));
 
   useEffect(() => {
     if (!isLingering) return;
 
-    const remaining = BREAK_LINGER_MS - (Date.now() - lingerStartedAtRef.current);
+    const limit =
+      lingerPitchCount > 0 ? BREAK_LINGER_MS : MAX_BREAK_WAIT_MS;
+    const remaining = limit - (Date.now() - lingerStartedAtRef.current);
     const id = window.setTimeout(() => setLingerTick((tick) => tick + 1), Math.max(0, remaining));
     return () => window.clearTimeout(id);
-  }, [isLingering, currentBreakKey, lingerTick]);
+  }, [isLingering, currentBreakKey, lingerTick, lingerPitchCount]);
 
   useEffect(() => {
     lastActiveRef.current = null;
@@ -102,8 +140,9 @@ export function useBreakLinger(gameState: LiveGameState | null): BreakLingerResu
 
   const showBreakUI =
     isBreak && !isLingering && !(gameState != null && isGameOver(gameState));
-  const atBatViewState =
-    isLingering && lingerSnapshotRef.current ? lingerSnapshotRef.current : gameState;
+  const atBatViewState = isLingering
+    ? (lingerSnapshotRef.current ?? lastActiveRef.current ?? gameState)
+    : gameState;
 
   return { atBatViewState, isLingering, showBreakUI };
 }

@@ -186,20 +186,59 @@ function emptyBases(): BaseOccupancy {
   return {};
 }
 
-function parseBasesFromRunners(
+const BASE_CODES = new Set(["1B", "2B", "3B"]);
+
+function clearRunnerFromBases(bases: BaseOccupancy, name: string): void {
+  if (bases.first === name) delete bases.first;
+  if (bases.second === name) delete bases.second;
+  if (bases.third === name) delete bases.third;
+}
+
+/** Apply runner movements from one play onto the previous base state. */
+function applyRunnerMovements(
+  previousBases: BaseOccupancy,
   runners: AllPlayRaw["runners"],
-): { bases: BaseOccupancy; onFirst: boolean; onSecond: boolean; onThird: boolean } {
-  const bases: BaseOccupancy = {};
+): BaseOccupancy {
+  const bases: BaseOccupancy = { ...previousBases };
+  const placements: Array<{ base: "1B" | "2B" | "3B"; name: string }> = [];
 
   for (const runner of runners ?? []) {
-    const end = runner.movement?.end;
     const name = runner.details?.runner?.fullName;
-    if (!name || !end) continue;
-    if (end === "1B") bases.first = name;
-    if (end === "2B") bases.second = name;
-    if (end === "3B") bases.third = name;
+    if (!name) continue;
+
+    const movement = runner.movement;
+    const start = movement?.start ?? movement?.originBase ?? null;
+    const end = movement?.end ?? null;
+    const isOut = movement?.isOut ?? false;
+
+    if (start === "1B" && bases.first === name) delete bases.first;
+    if (start === "2B" && bases.second === name) delete bases.second;
+    if (start === "3B" && bases.third === name) delete bases.third;
+
+    if (!start && (isOut || !end || end === "score")) {
+      clearRunnerFromBases(bases, name);
+    }
+
+    if (!isOut && end && BASE_CODES.has(end)) {
+      placements.push({ base: end as "1B" | "2B" | "3B", name });
+    }
   }
 
+  for (const { base, name } of placements) {
+    if (base === "1B") bases.first = name;
+    if (base === "2B") bases.second = name;
+    if (base === "3B") bases.third = name;
+  }
+
+  return bases;
+}
+
+function basesFlags(bases: BaseOccupancy): {
+  bases: BaseOccupancy;
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+} {
   return {
     bases,
     onFirst: Boolean(bases.first),
@@ -208,17 +247,18 @@ function parseBasesFromRunners(
   };
 }
 
-function parsePostSituation(play: AllPlayRaw): GameSituation {
-  const { bases, onFirst, onSecond, onThird } = parseBasesFromRunners(play.runners);
+function parsePostSituation(play: AllPlayRaw, previousBases: BaseOccupancy): GameSituation {
+  const bases = applyRunnerMovements(previousBases, play.runners);
+  const flags = basesFlags(bases);
 
   return {
     awayScore: play.result?.awayScore ?? 0,
     homeScore: play.result?.homeScore ?? 0,
     outs: play.count?.outs ?? 0,
-    bases,
-    onFirst,
-    onSecond,
-    onThird,
+    bases: flags.bases,
+    onFirst: flags.onFirst,
+    onSecond: flags.onSecond,
+    onThird: flags.onThird,
   };
 }
 
@@ -511,7 +551,7 @@ function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] 
     }
 
     const situationBefore = cloneSituation(situation);
-    const postSituation = parsePostSituation(play);
+    const postSituation = parsePostSituation(play, situation.bases);
     situation = postSituation;
 
     const event = play.result?.event ?? "";

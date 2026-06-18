@@ -1,5 +1,5 @@
 import type { BatterBoxLine } from "@/types/mlb-boxscore";
-import type { PlayByPlayEntry } from "@/types/mlb-live";
+import type { LiveGameState, PlayByPlayEntry } from "@/types/mlb-live";
 import { formatInning, formatInningHalf } from "@/lib/utils";
 
 export interface DueUpBatter {
@@ -151,6 +151,69 @@ export function buildDueUpContext(
     teamName,
     teamAbbrev,
     subtitle,
+    batters,
+  };
+}
+
+function dueUpSide(inningState: string): "away" | "home" {
+  return inningState.toLowerCase() === "middle" ? "home" : "away";
+}
+
+function dueUpSubtitle(inning: number, inningState: string): string {
+  const normalized = inningState.toLowerCase();
+  return normalized === "middle"
+    ? `${formatInning(inning)} ${formatInningHalf("bottom")}`
+    : `${formatInning(inning + 1)} ${formatInningHalf("top")}`;
+}
+
+/** Due-up list from linescore offense when box score is not ready yet. */
+export function buildDueUpFromOffense(gameState: LiveGameState): DueUpContext | null {
+  if (!isHalfInningBreak(gameState.inningState)) return null;
+
+  const normalized = gameState.inningState.toLowerCase();
+  if (normalized === "end" && gameState.inning >= 9 && gameState.awayRuns !== gameState.homeRuns) {
+    return null;
+  }
+
+  const batters: DueUpBatter[] = [];
+  const slot = gameState.battingOrderSlot;
+  const candidates = [
+  {
+    playerId: gameState.batterId,
+    name: gameState.batterName,
+    order: slot,
+  },
+  {
+    playerId: gameState.onDeckId,
+    name: gameState.onDeckName,
+    order: slot != null ? lineupSlotAfter(slot, 1) : null,
+  },
+  {
+    playerId: gameState.inHoleId,
+    name: gameState.inHoleName,
+    order: slot != null ? lineupSlotAfter(slot, 2) : null,
+  },
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate.playerId == null || !candidate.name || candidate.name === "—") continue;
+    batters.push({
+      order: candidate.order ?? batters.length + 1,
+      playerId: candidate.playerId,
+      name: candidate.name,
+      positions: "",
+      seasonAvg: "—",
+    });
+  }
+
+  if (batters.length === 0) return null;
+
+  const side = dueUpSide(normalized);
+  return {
+    breakKey: `${gameState.inning}-${normalized}`,
+    teamName: side === "home" ? gameState.homeTeam : gameState.awayTeam,
+    teamAbbrev: side === "home" ? gameState.homeAbbrev : gameState.awayAbbrev,
+    subtitle: dueUpSubtitle(gameState.inning, normalized),
     batters,
   };
 }

@@ -250,7 +250,14 @@ export interface AllPlayRaw {
   playEvents?: PitchEventRaw[];
   count?: { balls?: number; strikes?: number; outs?: number };
   runners?: Array<{
-    movement?: { end?: string | null };
+    movement?: {
+      originBase?: string | null;
+      start?: string | null;
+      end?: string | null;
+      outBase?: string | null;
+      isOut?: boolean;
+      outNumber?: number | null;
+    };
     details?: { runner?: { fullName?: string } };
   }>;
 }

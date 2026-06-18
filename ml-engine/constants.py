@@ -23,4 +23,9 @@ FEATURE_COLS = [
     "runners_code",
     "half_inning_bottom",
     "pitch_count_in_ab",
+    "batter_hand_L",
+    "batter_hand_R",
+    "pitcher_hand_L",
+    "pitcher_hand_R",
+    "platoon_adv"
 ]

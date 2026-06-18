@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { isGameOver } from "@/lib/mlb/gameOver";
-import { buildDueUpContext, type DueUpContext } from "@/lib/mlb/lineup";
+import { buildDueUpContext, buildDueUpFromOffense, type DueUpContext } from "@/lib/mlb/lineup";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { LiveGameState } from "@/types/mlb-live";
 
@@ -27,20 +27,26 @@ export function useLiveGameOverlays(
   const gameOver = gameState != null && isGameOver(gameState);
 
   const dueUp = useMemo(() => {
-    if (!gameState || !boxScore || gameOver) return null;
-    return buildDueUpContext(
-      gameState.inning,
-      gameState.inningState,
-      gameState.awayRuns,
-      gameState.homeRuns,
-      gameState.awayTeam,
-      gameState.homeTeam,
-      gameState.awayAbbrev,
-      gameState.homeAbbrev,
-      boxScore.away.batters,
-      boxScore.home.batters,
-      gameState.plays,
-    );
+    if (!gameState || gameOver) return null;
+
+    if (boxScore) {
+      const fromBox = buildDueUpContext(
+        gameState.inning,
+        gameState.inningState,
+        gameState.awayRuns,
+        gameState.homeRuns,
+        gameState.awayTeam,
+        gameState.homeTeam,
+        gameState.awayAbbrev,
+        gameState.homeAbbrev,
+        boxScore.away.batters,
+        boxScore.home.batters,
+        gameState.plays,
+      );
+      if (fromBox) return fromBox;
+    }
+
+    return buildDueUpFromOffense(gameState);
   }, [gameState, boxScore, gameOver]);
 
   useEffect(() => {
