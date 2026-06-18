@@ -113,6 +113,8 @@ export interface PlayByPlayEntry {
   onThird: boolean;
   situationBefore: GameSituation;
   isScoringPlay: boolean;
+  /** False for non-plate-appearance events (stolen bases, mound visits, etc.) */
+  isAtBat: boolean;
   detail: PlayDetail;
 }
 

@@ -178,6 +178,30 @@ function shouldShowThreeOuts(
   return lastPlay.outs === 3;
 }
 
+function GameEventRow({
+  play,
+  animate,
+}: {
+  play: PlayByPlayEntry;
+  animate: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 border-t border-border/30 px-3 py-2",
+        animate && "animate-play_in",
+      )}
+    >
+      <span className="shrink-0 font-mono text-[10px] font-medium uppercase text-subtle">
+        {eventAbbrev(play.event)}
+      </span>
+      <p className="min-w-0 flex-1 truncate text-[12px] text-muted">
+        {play.description}
+      </p>
+    </div>
+  );
+}
+
 function PlayOutcomeCard({
   play,
   awayAbbrev,
@@ -336,6 +360,16 @@ export const PlayByPlay = memo(function PlayByPlay({
                           const globalIndex = playIndexByAtBat.get(play.atBatIndex) ?? 0;
                           const animate =
                             animateEntrance && globalIndex >= entranceFromIndex;
+
+                          if (!play.isAtBat) {
+                            return (
+                              <GameEventRow
+                                key={`evt-${play.atBatIndex}`}
+                                play={play}
+                                animate={animate}
+                              />
+                            );
+                          }
 
                           return (
                             <PlayOutcomeCard

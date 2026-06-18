@@ -55,6 +55,43 @@ const NON_AB_EVENTS = new Set([
   "Defensive Indifference",
 ]);
 
+/** Events that represent terminal plate appearance outcomes (shown in play-by-play). */
+const PLATE_APPEARANCE_EVENTS = new Set([
+  "Single",
+  "Double",
+  "Triple",
+  "Home Run",
+  "Strikeout",
+  "Walk",
+  "Hit By Pitch",
+  "Groundout",
+  "Flyout",
+  "Pop Out",
+  "Lineout",
+  "Forceout",
+  "Fielders Choice",
+  "Fielders Choice Out",
+  "Field Error",
+  "Sacrifice Fly",
+  "Sacrifice Bunt",
+  "Sacrifice",
+  "Grounded Into DP",
+  "Double Play",
+  "Triple Play",
+  "Strikeout Double Play",
+  "Catcher Interference",
+  "Batter Interference",
+  "Fan Interference",
+  "Sac Fly",
+  "Sac Bunt",
+  "Sac Fly Double Play",
+  "Intent Walk",
+  "Intentional Walk",
+  "Fielders Choice",
+  "Runner Double Play",
+  "Strikeout - DP",
+]);
+
 const SKIP_ACTION_EVENT_TYPES = new Set([
   "game_advisory",
   "mound_visit",
@@ -593,7 +630,7 @@ function parsePlayEntry(
 
   const event = play.result?.event ?? "";
 
-  if (isLast && !event && isIncompletePlay(play)) {
+  if (isLast && isIncompletePlay(play)) {
     return { ...state, situation, currentHalf };
   }
 
@@ -601,9 +638,11 @@ function parsePlayEntry(
   const postSituation = parsePostSituation(play, situation.bases);
   situation = postSituation;
 
+  const isAtBat = Boolean(event) && PLATE_APPEARANCE_EVENTS.has(event);
+
   const batterId = play.matchup?.batter?.id ?? 0;
   const batterLine =
-    batterId > 0 && event ? applyBatterLine(state.batterStats, batterId, event) : { hits: 0, atBats: 0 };
+    batterId > 0 && isAtBat ? applyBatterLine(state.batterStats, batterId, event) : { hits: 0, atBats: 0 };
 
   const detail = parsePlayDetail(play, batterLine, batterId);
   if (!detail) {
@@ -634,6 +673,7 @@ function parsePlayEntry(
     onThird: postSituation.onThird,
     situationBefore,
     isScoringPlay: detail.isScoringPlay,
+    isAtBat,
     detail,
   };
 
