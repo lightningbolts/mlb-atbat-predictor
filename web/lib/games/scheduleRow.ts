@@ -50,6 +50,26 @@ export function mapScheduleGameToRow(game: ScheduleApiGame): GameScheduleRow {
   };
 }
 
+/** All regular-season games on an MLB calendar date (scores + status hydrated). */
+export async function fetchScheduleGamesForDate(date: string): Promise<GameScheduleRow[]> {
+  const url = new URL(MLB_SCHEDULE_BASE);
+  url.searchParams.set("sportId", "1");
+  url.searchParams.set("date", date);
+  url.searchParams.set("gameTypes", "R");
+  url.searchParams.set("hydrate", "team,linescore,venue");
+
+  const response = await fetch(url.toString(), { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`MLB schedule failed: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as {
+    dates?: Array<{ games?: ScheduleApiGame[] }>;
+  };
+
+  return (data.dates?.flatMap((day) => day.games ?? []) ?? []).map(mapScheduleGameToRow);
+}
+
 export async function fetchScheduleGameByPk(
   gamePk: number,
 ): Promise<GameScheduleRow | null> {

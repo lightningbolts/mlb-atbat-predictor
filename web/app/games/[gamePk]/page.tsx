@@ -1,6 +1,8 @@
 import { HistoricalGameDashboard } from "@/components/features/HistoricalGameDashboard";
 import { ScheduledGameView } from "@/components/features/ScheduledGameView";
 import { isReplayableGame } from "@/lib/games/format";
+import { fetchScheduleGameByPk } from "@/lib/games/scheduleRow";
+import { upsertScheduleRows } from "@/lib/games/scheduleSync";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
@@ -42,9 +44,27 @@ export default async function GameDetailPage({ params, searchParams }: GameDetai
     .eq("game_pk", gamePk)
     .maybeSingle();
 
-  if (error || !data) notFound();
+  if (error) notFound();
 
-  const game = data as Game;
+  let game = (data as Game | null) ?? null;
+
+  if (!game) {
+    const scheduleRow = await fetchScheduleGameByPk(gamePk);
+    if (!scheduleRow) notFound();
+
+    await upsertScheduleRows([scheduleRow]).catch(() => {
+      // Listing still works from MLB; DB sync is best-effort here.
+    });
+
+    game = {
+      ...scheduleRow,
+      game_state: null,
+      box_score: null,
+      feed_synced_at: null,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
   if (!isReplayableGame(game)) {
     return <ScheduledGameView game={game} historyBack={historyBack} />;
   }

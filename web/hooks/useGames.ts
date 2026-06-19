@@ -1,13 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSeasonStartDate } from "@/lib/games/format";
-import {
-  ACTIVE_CARRYOVER_STATUSES,
-  getMLBScheduleDate,
-  previousScheduleDate,
-} from "@/lib/mlb/schedule";
+import { getMLBScheduleDate } from "@/lib/mlb/schedule";
 import { GAME_LIST_COLUMNS, type Game } from "@/types/database";
 import { createClient } from "@/utils/supabase/client";
 
@@ -18,71 +14,65 @@ export interface UseGamesByDateResult {
   refetch: () => Promise<void>;
 }
 
-function mergeGamesByPk(primary: Game[], secondary: Game[]): Game[] {
-  const byPk = new Map<number, Game>();
-  for (const game of secondary) {
-    byPk.set(game.game_pk, game);
-  }
-  for (const game of primary) {
-    byPk.set(game.game_pk, game);
-  }
-  return [...byPk.values()].sort((a, b) =>
-    a.away_team_name.localeCompare(b.away_team_name),
-  );
-}
+const DATE_GAMES_POLL_MS = 30_000;
 
 export function useGamesByDate(date: string): UseGamesByDateResult {
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isToday = date === getMLBScheduleDate();
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const refetch = useCallback(async () => {
-    setIsLoading(true);
+    const requestId = ++requestIdRef.current;
+    const isInitialLoad = !hasLoadedRef.current;
+    if (isInitialLoad) setIsLoading(true);
     setError(null);
 
     try {
-      const supabase = createClient();
-      const carryoverStatuses = [...ACTIVE_CARRYOVER_STATUSES];
-      const prevDate = previousScheduleDate(date);
+      const response = await fetch(`/api/games/by-date?date=${encodeURIComponent(date)}`, {
+        cache: "no-store",
+      });
 
-      const [primaryResult, carryoverResult] = await Promise.all([
-        supabase
-          .from("games")
-          .select(GAME_LIST_COLUMNS)
-          .eq("game_date", date)
-          .order("away_team_name", { ascending: true }),
-        supabase
-          .from("games")
-          .select(GAME_LIST_COLUMNS)
-          .eq("game_date", prevDate)
-          .in("status", carryoverStatuses)
-          .order("away_team_name", { ascending: true }),
-      ]);
-
-      const fetchError = primaryResult.error ?? carryoverResult.error;
-      if (fetchError) {
-        setError(fetchError.message);
-        setGames([]);
-        return;
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Failed to load games (${response.status})`);
       }
 
-      setGames(
-        mergeGamesByPk(
-          (primaryResult.data ?? []) as Game[],
-          (carryoverResult.data ?? []) as Game[],
-        ),
-      );
+      const data = (await response.json()) as { games?: Game[] };
+      if (requestId !== requestIdRef.current) return;
+
+      hasLoadedRef.current = true;
+      setGames(data.games ?? []);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load games");
-      setGames([]);
+      if (isInitialLoad) setGames([]);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current && isInitialLoad) {
+        setIsLoading(false);
+      }
     }
+  }, [date]);
+
+  useEffect(() => {
+    hasLoadedRef.current = false;
   }, [date]);
 
   useEffect(() => {
     void refetch();
   }, [refetch]);
+
+  useEffect(() => {
+    if (!isToday) return;
+
+    const intervalId = window.setInterval(() => {
+      void refetch();
+    }, DATE_GAMES_POLL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [isToday, refetch]);
 
   return { games, isLoading, error, refetch };
 }

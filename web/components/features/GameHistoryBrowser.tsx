@@ -13,7 +13,6 @@ import {
   formatScore,
   gameStatusLabel,
   isLiveStatus,
-  isReplayableGame,
 } from "@/lib/games/format";
 import {
   buildGameDetailHref,
@@ -189,11 +188,6 @@ export function GameHistoryBrowser({
 
   const activeQuery = view === "date" ? dateQuery : teamQuery;
 
-  const replayableGames = useMemo(
-    () => activeQuery.games.filter(isReplayableGame),
-    [activeQuery.games],
-  );
-
   const summary = useMemo(() => {
     if (view === "date") {
       return formatGameDate(selectedDate);
@@ -298,22 +292,22 @@ export function GameHistoryBrowser({
                 <p className="mt-0.5 text-xs text-muted">{recordSummary}</p>
               )}
             </div>
-            {!activeQuery.isLoading && replayableGames.length > 0 && (
+            {!activeQuery.isLoading && activeQuery.games.length > 0 && (
               <span className="text-xs text-muted">
-                {replayableGames.length} game{replayableGames.length === 1 ? "" : "s"}
+                {activeQuery.games.length} game{activeQuery.games.length === 1 ? "" : "s"}
               </span>
             )}
           </div>
 
           <GamesList
-            games={replayableGames}
+            games={activeQuery.games}
             isLoading={activeQuery.isLoading}
             error={activeQuery.error}
             historyContext={historyContext}
             emptyMessage={
               view === "date"
-                ? "No completed games on this date. Scheduled games appear after they are played."
-                : "No completed games for this team yet. Select a team or pick another date range."
+                ? "No games on this date."
+                : "No games for this team yet. Select a team or try another season window."
             }
           />
         </section>

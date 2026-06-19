@@ -51,5 +51,6 @@ export function isReplayableGame(game: Pick<Game, "status">): boolean {
 
 export function gameStatusLabel(game: Game): string {
   if (isLiveStatus(game.status)) return "Live";
+  if (game.status === "Final") return "Final";
   return game.status_detail ?? game.status;
 }
