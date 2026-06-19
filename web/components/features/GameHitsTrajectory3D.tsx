@@ -1,6 +1,10 @@
 "use client";
 
-import { Line, OrbitControls } from "@react-three/drei";
+import { Line } from "@react-three/drei";
+import {
+  TRAJECTORY_CONTROLS_HINT,
+  TrajectoryOrbitControls,
+} from "@/components/features/TrajectoryOrbitControls";
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
@@ -138,13 +142,10 @@ function Scene({
           }
         />
       ))}
-      <OrbitControls
-        makeDefault
+      <TrajectoryOrbitControls
         target={bounds.center}
-        enablePan={false}
         minDistance={bounds.radius * 0.45}
         maxDistance={bounds.radius * 3.2}
-        maxPolarAngle={Math.PI / 2.05}
       />
     </>
   );
@@ -206,7 +207,7 @@ export function GameHitsTrajectory3D({
         </Canvas>
       </div>
       <p className="mt-1.5 text-center text-[10px] text-subtle">
-        Drag to rotate · scroll to zoom · estimated paths from launch angle &amp; distance
+        {TRAJECTORY_CONTROLS_HINT} · estimated paths from launch angle &amp; distance
       </p>
     </div>
   );
