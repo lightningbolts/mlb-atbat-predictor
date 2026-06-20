@@ -169,11 +169,98 @@ function parsePostSituationFromEvent(
   };
 }
 
+function basesEqual(a: BaseOccupancy, b: BaseOccupancy): boolean {
+  return a.first === b.first && a.second === b.second && a.third === b.third;
+}
+
+/** Game events that never change outs/bases/runners (still logged in PBP). */
+const NON_SITUATION_EVENT_TYPES = new Set([
+  "game_advisory",
+  "mound_visit",
+  "batter_timeout",
+  "pitching_substitution",
+  "defensive_substitution",
+  "offensive_substitution",
+  "defensive_switch",
+  "umpire_substitution",
+]);
+
+function playEventAffectsSituation(
+  event: PitchEventRaw,
+  previous: GameSituation,
+  after: GameSituation,
+): boolean {
+  const eventType = event.details?.eventType ?? "";
+  if (NON_SITUATION_EVENT_TYPES.has(eventType)) return false;
+
+  const text = `${event.details?.event ?? ""} ${event.details?.description ?? ""} ${event.type ?? ""}`.toLowerCase();
+
+  if (
+    /pickoff attempt|stepoff|mound visit|batter timeout|challenged|challenge|review|ejection/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  if (/substitution|new pitcher|pinch|defensive switch/i.test(text) && !event.runners?.length) {
+    return false;
+  }
+
+  if (after.outs !== previous.outs) return true;
+  if (after.awayScore !== previous.awayScore || after.homeScore !== previous.homeScore) {
+    return true;
+  }
+  if (!basesEqual(previous.bases, after.bases)) return true;
+
+  for (const runner of event.runners ?? []) {
+    const movement = runner.movement;
+    if (!movement) continue;
+    const start = movement.start ?? movement.originBase ?? null;
+    const end = movement.end ?? null;
+    if (movement.isOut) return true;
+    if (end === "score") return true;
+    if (end && start !== end) return true;
+  }
+
+  if (
+    /stolen base|caught stealing|wild pitch|passed ball|balk|fielding error|error on|advances to|runner scores|scores from/i.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+  if (/pickoff/i.test(text) && /out/i.test(text)) return true;
+
+  return false;
+}
+
+/** UI fallback for cached plays missing `affectsSituation`. */
+export function gameEventShowsSituation(entry: PlayByPlayEntry): boolean {
+  if (entry.isAtBat !== false) return true;
+  if (entry.affectsSituation != null) return entry.affectsSituation;
+  return inferGameEventAffectsSituation(entry.event, entry.description);
+}
+
+function inferGameEventAffectsSituation(event: string, description: string): boolean {
+  const text = `${event} ${description}`.toLowerCase();
+  if (
+    /mound visit|batter timeout|pickoff attempt|stepoff|substitution|challenge|review|ejection|timeout/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  return /stolen base|caught stealing|wild pitch|passed ball|balk|error|pickoff.*out|advances|scores/i.test(
+    text,
+  );
+}
+
 function buildGameEventFromPlayEvent(
   event: PitchEventRaw,
   play: AllPlayRaw,
   situationBefore: GameSituation,
   situationAfter: GameSituation,
+  affectsSituation: boolean,
 ): PlayByPlayEntry | null {
   if (!play.about?.inning) return null;
 
@@ -220,6 +307,7 @@ function buildGameEventFromPlayEvent(
     situationBefore,
     isScoringPlay: detail.isScoringPlay,
     isAtBat: false,
+    affectsSituation,
     detail,
   };
 }
@@ -301,17 +389,27 @@ function extractGameEventsFromPlay(
 
     const key = gameEventDedupeKey(atBatIndex, playEvents, i, playEvent);
     if (loggedKeys.has(key)) {
-      rolling = parsePostSituationFromEvent(playEvent, play, rolling);
+      const parsedAfter = parsePostSituationFromEvent(playEvent, play, rolling);
+      if (playEventAffectsSituation(playEvent, rolling, parsedAfter)) {
+        rolling = parsedAfter;
+      }
       continue;
     }
 
     const eventSituationBefore = cloneSituation(rolling);
-    const eventSituationAfter = parsePostSituationFromEvent(playEvent, play, rolling);
+    const parsedAfter = parsePostSituationFromEvent(playEvent, play, rolling);
+    const affectsSituation = playEventAffectsSituation(
+      playEvent,
+      eventSituationBefore,
+      parsedAfter,
+    );
+    const eventSituationAfter = affectsSituation ? parsedAfter : eventSituationBefore;
     const entry = buildGameEventFromPlayEvent(
       playEvent,
       play,
       eventSituationBefore,
       eventSituationAfter,
+      affectsSituation,
     );
     if (!entry) continue;
     if (isDuplicateGameEventEntry(existingEntries, entry)) continue;
@@ -319,7 +417,9 @@ function extractGameEventsFromPlay(
 
     loggedKeys.add(key);
     entries.push(entry);
-    rolling = eventSituationAfter;
+    if (affectsSituation) {
+      rolling = eventSituationAfter;
+    }
   }
 
   return { entries, situationAfter: rolling };
@@ -945,7 +1045,13 @@ export function isPlateAppearanceEvent(event: string): boolean {
 
 /** Ensure legacy cached plays have a correct isAtBat flag. */
 export function normalizePlayByPlayEntry(play: PlayByPlayEntry): PlayByPlayEntry {
-  if (play.isAtBat === false) return play;
+  if (play.isAtBat === false) {
+    if (play.affectsSituation != null) return play;
+    return {
+      ...play,
+      affectsSituation: inferGameEventAffectsSituation(play.event, play.description),
+    };
+  }
   const isAtBat = isPlateAppearanceEvent(play.event);
   if (play.isAtBat === isAtBat) return play;
   return { ...play, isAtBat };

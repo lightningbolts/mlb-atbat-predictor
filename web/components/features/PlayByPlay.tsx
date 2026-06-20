@@ -7,6 +7,7 @@ import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
 import { cn } from "@/lib/utils";
+import { gameEventShowsSituation } from "@/lib/mlb/liveFeed";
 import {
   formatGameScore,
   formatOuts,
@@ -147,7 +148,7 @@ function GameEventRow({
   homeAbbrev: string;
   animate: boolean;
 }) {
-  const showSituation = !isHalfInningStart(play.situationBefore);
+  const showSituation = gameEventShowsSituation(play);
 
   return (
     <div className={cn(animate && "animate-play_in")}>
@@ -388,7 +389,7 @@ function GameEventFeedRow({
   homeAbbrev: string;
   animate: boolean;
 }) {
-  const showSituation = !isHalfInningStart(play.situationBefore);
+  const showSituation = gameEventShowsSituation(play);
 
   return (
     <div className={cn(animate && "animate-play_in")}>

@@ -115,6 +115,8 @@ export interface PlayByPlayEntry {
   isScoringPlay: boolean;
   /** False for non-plate-appearance events (stolen bases, mound visits, etc.) */
   isAtBat: boolean;
+  /** False for game events that don't change bases/outs (mound visits, timeouts, etc.). */
+  affectsSituation?: boolean;
   detail: PlayDetail;
 }
 

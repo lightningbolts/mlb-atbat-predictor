@@ -26,6 +26,8 @@ interface PitchSequenceProps {
   animateEntrance?: boolean;
   /** Mobile Gameday-style: large zone on top, pitch feed below. */
   zoneFirst?: boolean;
+  /** Shorter strike zone on small screens (live dashboard). */
+  mobileZoneCompact?: boolean;
 }
 
 function usePitchEntranceIndex(pitches: PlayPitch[], enabled: boolean): number {
@@ -70,12 +72,22 @@ const SIZE_STYLES = {
 const MOBILE_ZONE_FIRST_HEIGHT =
   "h-[clamp(17rem,45vh,28rem)] w-full shrink-0";
 
+/** Compact zone for live dashboard — grows within the at-bat panel flex slot */
+const MOBILE_ZONE_COMPACT_HEIGHT =
+  "h-full min-h-[12rem] w-full shrink-0";
+
+function mobileZoneHeightClass(compact?: boolean): string {
+  return compact ? MOBILE_ZONE_COMPACT_HEIGHT : MOBILE_ZONE_FIRST_HEIGHT;
+}
+
 function EmptyStrikeZone({
   className,
   zoneFirst = false,
+  mobileZoneCompact = false,
 }: {
   className?: string;
   zoneFirst?: boolean;
+  mobileZoneCompact?: boolean;
 }) {
   const szTop = 3.5;
   const szBottom = 1.5;
@@ -87,7 +99,7 @@ function EmptyStrikeZone({
       viewBox="0 0 100 100"
       className={cn(
         "w-full border border-border bg-zone-chart-bg",
-        zoneFirst ? MOBILE_ZONE_FIRST_HEIGHT : "h-40",
+        zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40",
         className,
       )}
       aria-hidden
@@ -321,6 +333,7 @@ function SplitLayout({
   scrollToLatest,
   entranceFromIndex,
   zoneFirst = false,
+  mobileZoneCompact = false,
 }: {
   pitches: PlayPitch[];
   resolvedSize: keyof typeof SIZE_STYLES;
@@ -329,6 +342,7 @@ function SplitLayout({
   scrollToLatest?: boolean;
   entranceFromIndex: number;
   zoneFirst?: boolean;
+  mobileZoneCompact?: boolean;
 }) {
   const styles = SIZE_STYLES[resolvedSize];
   const zoneSize = zoneFirst ? "large" : resolvedSize;
@@ -338,7 +352,7 @@ function SplitLayout({
       className={cn(
         "flex w-full flex-col",
         zoneFirst
-          ? cn(MOBILE_ZONE_FIRST_HEIGHT, "grow-0 md:h-auto md:min-h-0 md:shrink md:grow")
+          ? cn(mobileZoneHeightClass(mobileZoneCompact), "grow-0 md:h-auto md:min-h-0 md:shrink md:grow")
           : cn("min-h-0", contained ? "h-full" : "w-full md:w-auto", styles.chartMinH),
         zoneFirst ? "order-1 md:order-2 md:flex-[2]" : "flex-[2]",
       )}
@@ -408,13 +422,20 @@ export function PitchSequence({
   contained = true,
   animateEntrance = false,
   zoneFirst = false,
+  mobileZoneCompact = false,
 }: PitchSequenceProps) {
   const resolvedSize = size ?? (compact ? "compact" : "default");
   const entranceFromIndex = usePitchEntranceIndex(pitches, animateEntrance);
 
   if (layout === "zone") {
     if (pitches.length === 0) {
-      return <EmptyStrikeZone className={className} zoneFirst={zoneFirst} />;
+      return (
+        <EmptyStrikeZone
+          className={className}
+          zoneFirst={zoneFirst}
+          mobileZoneCompact={mobileZoneCompact}
+        />
+      );
     }
 
     return (
@@ -424,7 +445,7 @@ export function PitchSequence({
         fill={false}
         entranceFromIndex={entranceFromIndex}
         className={cn(
-          zoneFirst ? MOBILE_ZONE_FIRST_HEIGHT : "h-40 w-full",
+          zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40 w-full",
           className,
         )}
       />
@@ -441,6 +462,7 @@ export function PitchSequence({
         scrollToLatest={scrollToLatest}
         entranceFromIndex={entranceFromIndex}
         zoneFirst={zoneFirst}
+        mobileZoneCompact={mobileZoneCompact}
       />
     );
   }

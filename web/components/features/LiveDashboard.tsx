@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
+import { AtBatMatchup } from "@/components/features/AtBatMatchup";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
-import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
 import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
@@ -139,11 +139,11 @@ function DashboardContent({ game }: { game: SlateGame }) {
           {showSkeleton ? (
             <DashboardSkeleton />
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-x-hidden bg-border">
+            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-md:min-h-0">
               <Panel
                 title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
                 flushMobile
-                className="order-1 shrink-0 overflow-hidden md:order-none md:min-h-[320px] md:flex-[3]"
+                className="order-1 min-h-0 shrink-0 overflow-hidden max-md:flex-[3] md:order-none md:min-h-[320px] md:flex-[3]"
               >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -165,21 +165,26 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   ) : (
                     <>
                   {atBatViewState && !showBreakUI && (
-                    <div className="hidden md:block">
-                      <BatterVsPitcherRecord
+                    <>
+                      <AtBatMatchup
+                        batterId={atBatViewState.batterId}
                         batterName={atBatViewState.batterName}
+                        pitcherId={atBatViewState.pitcherId}
                         pitcherName={atBatViewState.pitcherName}
-                        record={matchupRecord}
-                        isLoading={isMatchupLoading}
+                        offenseTeamId={atBatViewState.offenseTeamId}
+                        boxScore={boxScore}
+                        matchupRecord={matchupRecord}
+                        isMatchupLoading={isMatchupLoading}
                       />
                       {runnersInScoringPosition && (
                         <BatterRispRecord
                           batterName={atBatViewState.batterName}
                           stats={rispStats}
                           isLoading={isRispLoading}
+                          className="mx-3 mb-2 hidden md:mx-0 md:block"
                         />
                       )}
-                    </div>
+                    </>
                   )}
                   {showBreakUI && dueUp ? (
                     <ul className="space-y-2">
@@ -220,13 +225,15 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     <p className="text-sm text-subtle">Loading due up…</p>
                   ) : (
                     <>
-                      <div className="shrink-0 md:hidden">
+                      <div className="flex min-h-0 flex-1 flex-col md:hidden">
                         <PitchSequence
                           pitches={atBatViewState?.atBatPitches ?? []}
                           layout="zone"
                           size="compact"
                           zoneFirst
+                          mobileZoneCompact
                           animateEntrance
+                          className="h-full w-full"
                         />
                       </div>
                       <div className="hidden min-h-0 flex-1 md:flex">
@@ -268,7 +275,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   </div>
                 </Panel>
 
-                <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
+                <div className="order-2 flex min-h-0 flex-[2] flex-col md:hidden">
                   <PlayByPlay
                     key={selectedGamePk}
                     monitorKey={selectedGamePk}
