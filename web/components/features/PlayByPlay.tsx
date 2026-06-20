@@ -784,7 +784,7 @@ export const PlayByPlay = memo(function PlayByPlay({
 
         <div
           ref={scrollContainerRef}
-          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          className="min-h-0 flex-1 touch-pan-y overflow-y-auto overflow-x-hidden overscroll-y-contain"
         >
           {feedHeader && variant !== "feed" ? (
             <div className="border-b border-border bg-panel px-3 py-3">{feedHeader}</div>

@@ -208,7 +208,7 @@ export function GameHitsView({
             <p className="text-sm text-subtle">No tracked hits yet.</p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto">
             <div className="grid gap-px bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
               <div className="flex flex-col gap-px bg-border">
                 <section className="bg-panel p-3 sm:p-4">

@@ -42,7 +42,7 @@ const SIZE_STYLES = {
   compact: {
     chart: "w-[120px]",
     chartMinH: "min-h-[180px]",
-    dotR: 2.2,
+    dotR: 2.1,
     dotFont: 2.6,
     feed: "text-[12px]",
     badge: "h-6 w-6 text-[10px]",
@@ -51,7 +51,7 @@ const SIZE_STYLES = {
   default: {
     chart: "w-[160px]",
     chartMinH: "min-h-[220px]",
-    dotR: 2.6,
+    dotR: 2.4,
     dotFont: 2.8,
     feed: "text-[13px]",
     badge: "h-7 w-7 text-[11px]",
@@ -60,8 +60,8 @@ const SIZE_STYLES = {
   large: {
     chart: "w-[200px]",
     chartMinH: "min-h-[280px]",
-    dotR: 3.2,
-    dotFont: 3.2,
+    dotR: 2.7,
+    dotFont: 3.0,
     feed: "text-[14px]",
     badge: "h-8 w-8 text-[12px]",
     rowPy: "py-3",
@@ -78,6 +78,46 @@ const MOBILE_ZONE_COMPACT_HEIGHT =
 
 function mobileZoneHeightClass(compact?: boolean): string {
   return compact ? MOBILE_ZONE_COMPACT_HEIGHT : MOBILE_ZONE_FIRST_HEIGHT;
+}
+
+function ZoneGridLines({ zone }: { zone: ReturnType<typeof zoneRectPercent> }) {
+  return (
+    <>
+      {[1, 2].map((i) => (
+        <line
+          key={`v${i}`}
+          x1={zone.x + (zone.width * i) / 3}
+          y1={zone.y}
+          x2={zone.x + (zone.width * i) / 3}
+          y2={zone.y + zone.height}
+          stroke="var(--zone-chart-grid)"
+          strokeWidth="0.35"
+          opacity="0.8"
+        />
+      ))}
+      {[1, 2].map((i) => (
+        <line
+          key={`h${i}`}
+          x1={zone.x}
+          y1={zone.y + (zone.height * i) / 3}
+          x2={zone.x + zone.width}
+          y2={zone.y + (zone.height * i) / 3}
+          stroke="var(--zone-chart-grid)"
+          strokeWidth="0.35"
+          opacity="0.8"
+        />
+      ))}
+      <rect
+        x={zone.x}
+        y={zone.y}
+        width={zone.width}
+        height={zone.height}
+        fill="none"
+        stroke="var(--zone-chart-grid)"
+        strokeWidth="1"
+      />
+    </>
+  );
 }
 
 function EmptyStrikeZone({
@@ -117,33 +157,8 @@ function EmptyStrikeZone({
           width={zone.width}
           height={zone.height}
           fill="var(--zone-chart-zone-fill)"
-          stroke="var(--zone-chart-grid)"
-          strokeWidth="0.85"
         />
-        {[1, 2].map((i) => (
-          <line
-            key={`v${i}`}
-            x1={zone.x + (zone.width * i) / 3}
-            y1={zone.y}
-            x2={zone.x + (zone.width * i) / 3}
-            y2={zone.y + zone.height}
-            stroke="var(--zone-chart-grid)"
-            strokeWidth="0.35"
-            opacity="0.8"
-          />
-        ))}
-        {[1, 2].map((i) => (
-          <line
-            key={`h${i}`}
-            x1={zone.x}
-            y1={zone.y + (zone.height * i) / 3}
-            x2={zone.x + zone.width}
-            y2={zone.y + (zone.height * i) / 3}
-            stroke="var(--zone-chart-grid)"
-            strokeWidth="0.35"
-            opacity="0.8"
-          />
-        ))}
+        <ZoneGridLines zone={zone} />
     </svg>
   );
 }
@@ -173,7 +188,7 @@ function StrikeZoneChart({
       viewBox="0 0 100 100"
       className={cn(
         "border border-border bg-zone-chart-bg",
-        fill ? cn("h-full w-full", styles.chartMinH) : cn("shrink-0", styles.chart),
+        fill ? cn("h-full w-full touch-none", styles.chartMinH) : cn("shrink-0", styles.chart),
         className,
       )}
       aria-hidden
@@ -191,44 +206,20 @@ function StrikeZoneChart({
         width={zone.width}
         height={zone.height}
         fill="var(--zone-chart-zone-fill)"
-        stroke="var(--zone-chart-grid)"
-        strokeWidth="0.85"
       />
-      {[1, 2].map((i) => (
-        <line
-          key={`v${i}`}
-          x1={zone.x + (zone.width * i) / 3}
-          y1={zone.y}
-          x2={zone.x + (zone.width * i) / 3}
-          y2={zone.y + zone.height}
-          stroke="var(--zone-chart-grid)"
-          strokeWidth="0.35"
-          opacity="0.8"
-        />
-      ))}
-      {[1, 2].map((i) => (
-        <line
-          key={`h${i}`}
-          x1={zone.x}
-          y1={zone.y + (zone.height * i) / 3}
-          x2={zone.x + zone.width}
-          y2={zone.y + (zone.height * i) / 3}
-          stroke="var(--zone-chart-grid)"
-          strokeWidth="0.35"
-          opacity="0.8"
-        />
-      ))}
+      <ZoneGridLines zone={zone} />
       {plotted.map((pitch, index) => {
         const dot = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
         const color = pitchResultColor(pitch);
         const animate = index >= entranceFromIndex;
+        const dotR = styles.dotR;
         return (
           <g
             key={`${pitch.pitchNumber}-${pitch.callCode}`}
             className={animate ? "animate-pitch_in" : undefined}
           >
-            <circle cx={dot.x} cy={dot.y} r={styles.dotR + 0.35} fill="rgb(0 0 0 / 0.2)" />
-            <circle cx={dot.x} cy={dot.y} r={styles.dotR} fill={color} />
+            <circle cx={dot.x} cy={dot.y} r={dotR + 0.3} fill="rgb(0 0 0 / 0.2)" />
+            <circle cx={dot.x} cy={dot.y} r={dotR} fill={color} />
             <text
               x={dot.x}
               y={dot.y}

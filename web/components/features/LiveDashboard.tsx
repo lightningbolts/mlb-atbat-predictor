@@ -88,30 +88,37 @@ function DashboardContent({ game }: { game: SlateGame }) {
   }, [gameState?.plays]);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-x-hidden">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <ConnectionIndicator status={connectionStatus} error={error} />
       <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "box" ? (
-        <BoxScoreView
-          boxScore={boxScore}
-          isLoading={isBoxScoreLoading}
-          atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
-          onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
-          offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <BoxScoreView
+            boxScore={boxScore}
+            isLoading={isBoxScoreLoading}
+            atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
+            onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
+            offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
+            className="min-h-0 flex-1"
+          />
+        </div>
       ) : activeTab === "spray" ? (
-        <GameHitsView
-          plays={gameState?.plays ?? []}
-          venueId={gameState?.venueId}
-          venueName={gameState?.venueName}
-          awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
-          homeAbbrev={gameState?.homeAbbrev ?? "HME"}
-          isLoading={isFeedLoading && !gameState}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <GameHitsView
+            plays={gameState?.plays ?? []}
+            venueId={gameState?.venueId}
+            venueName={gameState?.venueName}
+            awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
+            homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+            isLoading={isFeedLoading && !gameState}
+            className="min-h-0 flex-1"
+          />
+        </div>
       ) : (
         <>
       <Scorebug
+        className="shrink-0"
         gameState={
           gameState
             ? { ...gameState, onFirst, onSecond, onThird }
@@ -124,7 +131,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
         }
       />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
           <PlayByPlay
             plays={gameState?.plays ?? []}
@@ -135,15 +142,15 @@ function DashboardContent({ game }: { game: SlateGame }) {
           />
         </div>
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {showSkeleton ? (
             <DashboardSkeleton />
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-md:min-h-0">
+            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border">
               <Panel
                 title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
                 flushMobile
-                className="order-1 min-h-0 shrink-0 overflow-hidden max-md:flex-[3] md:order-none md:min-h-[320px] md:flex-[3]"
+                className="order-1 min-h-0 overflow-hidden max-md:flex-[3] max-md:shrink md:order-none md:min-h-[320px] md:flex-[3] md:shrink-0"
               >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -275,7 +282,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   </div>
                 </Panel>
 
-                <div className="order-2 flex min-h-0 flex-[2] flex-col md:hidden">
+                <div className="order-2 flex min-h-0 flex-[2] flex-col overflow-hidden md:hidden">
                   <PlayByPlay
                     key={selectedGamePk}
                     monitorKey={selectedGamePk}
@@ -383,7 +390,7 @@ export function LiveGameDashboard({ game }: LiveGameDashboardProps) {
   }
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
       <AppNav />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="shrink-0 border-b border-border bg-surface px-3 py-2 sm:px-4">

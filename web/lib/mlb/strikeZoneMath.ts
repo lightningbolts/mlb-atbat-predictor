@@ -17,7 +17,39 @@ export const PITCH_IN_PLAY_OUT_COLOR = "#a855f7";
 export const PITCH_NEUTRAL_COLOR = "#737373";
 export const PITCH_REVIEW_COLOR = "#f59e0b";
 
-const ZONE_WIDTH_FT = 1.42;
+/** ABS zone width — 17 inches at the plate midpoint. */
+export const ZONE_WIDTH_FT = 17 / 12;
+export const PLATE_HALF_WIDTH_FT = ZONE_WIDTH_FT / 2;
+/** Regulation ball radius (~2.9" diameter) for overlap checks. */
+export const BALL_RADIUS_FT = 2.9 / 12 / 2;
+
+/** True when the pitch center is inside the ABS rectangle. */
+export function isPitchCenterInZone(
+  pX: number,
+  pZ: number,
+  szTop: number,
+  szBottom: number,
+): boolean {
+  return (
+    Math.abs(pX) <= PLATE_HALF_WIDTH_FT &&
+    pZ >= szBottom &&
+    pZ <= szTop
+  );
+}
+
+/** True when any part of the ball could touch the ABS rectangle. */
+export function isAbsStrike(
+  pX: number,
+  pZ: number,
+  szTop: number,
+  szBottom: number,
+): boolean {
+  return (
+    Math.abs(pX) - BALL_RADIUS_FT <= PLATE_HALF_WIDTH_FT &&
+    pZ + BALL_RADIUS_FT >= szBottom &&
+    pZ - BALL_RADIUS_FT <= szTop
+  );
+}
 
 function horizontalPercent(pX: number) {
   const minX = -VIEW_WIDTH_FT / 2;
@@ -70,8 +102,8 @@ export function zoneRectPercent(szTop: number, szBottom: number) {
   const minX = -VIEW_WIDTH_FT / 2;
   const maxX = VIEW_WIDTH_FT / 2;
 
-  const left = ((-ZONE_WIDTH_FT / 2 - minX) / (maxX - minX)) * 100;
-  const right = ((ZONE_WIDTH_FT / 2 - minX) / (maxX - minX)) * 100;
+  const left = ((-PLATE_HALF_WIDTH_FT - minX) / (maxX - minX)) * 100;
+  const right = ((PLATE_HALF_WIDTH_FT - minX) / (maxX - minX)) * 100;
   const top = zToSvgY(szTop, minZ, maxZ, 0, ZONE_BAND_PCT);
   const bottom = zToSvgY(szBottom, minZ, maxZ, 0, ZONE_BAND_PCT);
 
