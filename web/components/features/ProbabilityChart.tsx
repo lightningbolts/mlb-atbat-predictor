@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { motion } from "framer-motion";
 
 import {
@@ -36,14 +37,16 @@ function barColor(key: OutcomeKey): string {
   }
 }
 
-const barSpring = {
-  type: "spring" as const,
-  stiffness: 180,
-  damping: 22,
-  mass: 0.9,
+const barTransition = {
+  duration: 0.18,
+  ease: "easeOut" as const,
 };
 
-export function ProbabilityChart({
+function probabilitiesEqual(a: OutcomeProbabilities, b: OutcomeProbabilities): boolean {
+  return OUTCOME_DISPLAY_ORDER.every((key) => (a?.[key] ?? 0) === (b?.[key] ?? 0));
+}
+
+export const ProbabilityChart = memo(function ProbabilityChart({
   probabilities,
   contained = false,
   compact = false,
@@ -71,9 +74,9 @@ export function ProbabilityChart({
             <div className="h-1.5 bg-surface-elevated">
               <motion.div
                 className={`h-full ${barColor(key)}`}
-                initial={{ width: 0 }}
+                initial={false}
                 animate={{ width: `${widthPercent}%` }}
-                transition={barSpring}
+                transition={barTransition}
               />
             </div>
           </li>
@@ -93,4 +96,9 @@ export function ProbabilityChart({
       </div>
     </div>
   );
-}
+}, (prev, next) =>
+  prev.contained === next.contained &&
+  prev.compact === next.compact &&
+  prev.className === next.className &&
+  probabilitiesEqual(prev.probabilities, next.probabilities),
+);

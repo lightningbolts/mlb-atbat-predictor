@@ -1,10 +1,8 @@
 import type { MLBLiveFeedResponse } from "@/types/mlb-live";
 
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
-/** Coalesce rapid client polls into one upstream MLB request per game.
- *  MLB updates pitch-by-pitch (~5-10s cadence); caching longer avoids redundant
- *  upstream fetches while remaining well within real-time latency budget. */
-const CACHE_MS = 2_000;
+/** Coalesce rapid server-side polls (box score, etc.) without adding live pitch lag. */
+const CACHE_MS = 400;
 
 interface CacheEntry {
   feed: MLBLiveFeedResponse;

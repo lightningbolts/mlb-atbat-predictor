@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
@@ -235,6 +235,8 @@ function StrikeZoneChart({
   );
 }
 
+const MemoStrikeZoneChart = memo(StrikeZoneChart);
+
 /** Gameday-style vertical pitch list. */
 function PitchFeed({
   pitches,
@@ -341,7 +343,7 @@ function SplitLayout({
         zoneFirst ? "order-1 md:order-2 md:flex-[2]" : "flex-[2]",
       )}
     >
-      <StrikeZoneChart
+      <MemoStrikeZoneChart
         pitches={pitches}
         size={zoneSize}
         fill
@@ -416,7 +418,7 @@ export function PitchSequence({
     }
 
     return (
-      <StrikeZoneChart
+      <MemoStrikeZoneChart
         pitches={pitches}
         size="large"
         fill={false}
