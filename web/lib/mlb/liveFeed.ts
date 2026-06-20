@@ -46,22 +46,6 @@ export interface PlayByPlayParseState {
 
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 
-/** Slim field mask for pitch polling — omits allPlays (~30× smaller than full feed). */
-export const LIVE_FEED_PITCH_FIELDS = [
-  "gameData",
-  "status",
-  "teams",
-  "venue",
-  "liveData",
-  "linescore",
-  "offense",
-  "plays",
-  "currentPlay",
-  "boxscore",
-].join(",");
-
-export type LiveFeedFetchMode = "pitch" | "plays";
-
 const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
 
 const NON_AB_EVENTS = new Set([
@@ -301,25 +285,7 @@ function mergeCurrentPlayTail(
 }
 
 /**
- * Snapshot poll: re-process the in-progress allPlays row from fresher currentPlay.
- * Finalizes at-bat outcomes and logs steals/visits without downloading allPlays.
- */
-export function syncCurrentPlayTail(
-  state: PlayByPlayParseState,
-  currentPlay: AllPlayRaw | null | undefined,
-  allPlaysCount: number,
-): PlayByPlayParseState {
-  if (!currentPlay || allPlaysCount <= 0) return state;
-
-  const ongoingIndex = allPlaysCount - 1;
-  const from = state.rawPlayCount;
-  if (from !== ongoingIndex) return state;
-
-  return appendPlayByPlay(state, [currentPlay], ongoingIndex, allPlaysCount);
-}
-
-/**
- * Incremental play-by-play sync when the full allPlays array is available.
+ * Incremental play-by-play sync on every live poll.
  * `currentPlay` is fresher than `allPlays.at(-1)` — merge it so outcomes finalize
  * as soon as MLB publishes them, not one poll later.
  */
@@ -1129,16 +1095,8 @@ export function liveStateFingerprint(state: LiveGameState): string {
 export async function fetchMLBLiveFeed(
   gamePk: number,
   signal?: AbortSignal,
-  options?: { mode?: LiveFeedFetchMode },
 ): Promise<MLBLiveFeedResponse> {
-  const params = new URLSearchParams();
-  if (options?.mode === "pitch") {
-    params.set("fields", LIVE_FEED_PITCH_FIELDS);
-  }
-
-  const query = params.toString();
-  const url = `${MLB_FEED_BASE}/game/${gamePk}/feed/live${query ? `?${query}` : ""}`;
-  const response = await fetch(url, {
+  const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
     cache: "no-store",
     signal,
   });
@@ -1218,11 +1176,7 @@ export async function fetchDirectSnapshot(
   playsFrom: number | null,
   signal?: AbortSignal,
 ): Promise<LiveSnapshotWithPlays> {
-  const feed = await fetchMLBLiveFeed(
-    gamePk,
-    signal,
-    playsFrom != null ? { mode: "plays" } : { mode: "pitch" },
-  );
+  const feed = await fetchMLBLiveFeed(gamePk, signal);
   const snapshot = buildLiveFeedSnapshot(gamePk, feed);
 
   if (playsFrom != null) {
