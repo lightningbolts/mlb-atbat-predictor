@@ -14,6 +14,8 @@ interface ProbabilityChartProps {
   probabilities: OutcomeProbabilities;
   /** When true, outcome list scrolls inside its panel instead of overflowing. */
   contained?: boolean;
+  /** Denser rows for inline mobile feeds. */
+  compact?: boolean;
   className?: string;
 }
 
@@ -44,17 +46,23 @@ const barSpring = {
 export function ProbabilityChart({
   probabilities,
   contained = false,
+  compact = false,
   className,
 }: ProbabilityChartProps) {
   const chart = (
-    <ul className="space-y-2.5" role="list">
+    <ul className={cn(compact ? "space-y-1.5" : "space-y-2.5")} role="list">
       {OUTCOME_DISPLAY_ORDER.map((key) => {
         const value = probabilities?.[key] ?? 0;
         const widthPercent = Math.min(100, Math.max(0, value * 100));
 
         return (
           <li key={key}>
-            <div className="mb-1 flex justify-between text-[13px]">
+            <div
+              className={cn(
+                "mb-1 flex justify-between",
+                compact ? "text-[12px]" : "text-[13px]",
+              )}
+            >
               <span className="text-secondary">{OUTCOME_LABELS[key]}</span>
               <span className="font-mono tabular-nums text-muted">
                 {formatProbability(value)}

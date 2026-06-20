@@ -115,7 +115,6 @@ interface GameHitsTrajectory3DProps {
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
   className?: string;
-  height?: number;
 }
 
 export function GameHitsTrajectory3D({
@@ -123,7 +122,6 @@ export function GameHitsTrajectory3D({
   venueId,
   selectedAtBatIndex = null,
   className,
-  height = 360,
 }: GameHitsTrajectory3DProps) {
   const cameraPosition = useMemo((): Vec3 => {
     const bounds = combinedBounds(hits, venueId);
@@ -134,8 +132,8 @@ export function GameHitsTrajectory3D({
 
   if (hits.length === 0) {
     return (
-      <div className={className} style={{ height }}>
-        <div className="flex h-full items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle">
+      <div className={className}>
+        <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
           No batted-ball trajectories yet
         </div>
       </div>
@@ -144,7 +142,7 @@ export function GameHitsTrajectory3D({
 
   return (
     <div className={className}>
-      <div className="overflow-hidden rounded border border-border bg-field-chart-canvas">
+      <div className="h-[240px] overflow-hidden rounded border border-border bg-field-chart-canvas sm:h-[300px] xl:h-[360px]">
         <Canvas
           camera={{
             position: cameraPosition,
@@ -153,7 +151,7 @@ export function GameHitsTrajectory3D({
             far: 500,
           }}
           gl={{ antialias: true }}
-          style={{ height, width: "100%", touchAction: "none" }}
+          style={{ height: "100%", width: "100%", touchAction: "none" }}
         >
           <Scene
             hits={hits}
@@ -163,7 +161,11 @@ export function GameHitsTrajectory3D({
         </Canvas>
       </div>
       <p className="mt-1.5 text-center text-[10px] text-subtle">
-        {TRAJECTORY_CONTROLS_HINT} · estimated paths from launch angle &amp; distance
+        <span className="sm:hidden">Drag to rotate · pinch to zoom</span>
+        <span className="hidden sm:inline">
+          {TRAJECTORY_CONTROLS_HINT} · estimated paths from launch angle &amp; distance
+        </span>
+        <span className="sm:hidden"> · estimated paths</span>
       </p>
     </div>
   );

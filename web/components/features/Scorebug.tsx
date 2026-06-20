@@ -54,31 +54,32 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
   return (
     <div
       className={cn(
-        "flex h-14 shrink-0 items-stretch border-b border-border bg-scorebug text-scorebug-fg",
+        "flex h-14 w-full max-w-full shrink-0 items-stretch border-b border-border bg-scorebug text-scorebug-fg max-md:overflow-hidden",
         className,
       )}
     >
-      <div className="flex min-w-[72px] flex-col items-center justify-center border-r border-border px-3">
+      <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-contain md:overflow-visible">
+      <div className="flex min-w-[52px] flex-col items-center justify-center border-r border-border px-2 max-md:min-w-[52px] md:min-w-[72px] md:px-3">
         <span className="text-[10px] font-semibold tracking-wide text-scorebug-muted">
           {awayAbbrev}
         </span>
         <span className="font-mono text-2xl font-bold leading-none tabular-nums">{awayRuns}</span>
       </div>
 
-      <div className="flex min-w-[72px] flex-col items-center justify-center border-r border-border px-3">
+      <div className="flex min-w-[52px] flex-col items-center justify-center border-r border-border px-2 max-md:min-w-[52px] md:min-w-[72px] md:px-3">
         <span className="text-[10px] font-semibold tracking-wide text-scorebug-muted">
           {homeAbbrev}
         </span>
         <span className="font-mono text-2xl font-bold leading-none tabular-nums">{homeRuns}</span>
       </div>
 
-      <div className="flex min-w-[64px] items-center justify-center border-r border-border px-3">
+      <div className="flex min-w-[52px] items-center justify-center border-r border-border px-2 md:min-w-[64px] md:px-3">
         <span className="font-mono text-sm font-semibold tracking-wide">
           {gameEnded ? "FINAL" : inningLabel(inning, inningHalf)}
         </span>
       </div>
 
-      <div className="flex items-center gap-2 border-r border-border px-3">
+      <div className="flex items-center gap-1.5 border-r border-border px-2 md:gap-2 md:px-3">
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-[9px] font-semibold text-green-600 dark:text-green-500">B</span>
           <span className="flex h-7 w-7 items-center justify-center rounded bg-green-600/15 font-mono text-lg font-bold tabular-nums text-green-700 dark:bg-green-600/20 dark:text-green-400">
@@ -94,7 +95,7 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
       </div>
 
       <div
-        className="flex flex-col items-center justify-center border-r border-border px-3"
+        className="flex flex-col items-center justify-center border-r border-border px-2 md:px-3"
         aria-label={`${safeOuts} outs`}
       >
         <span className="mb-1 text-[9px] font-semibold text-scorebug-muted">OUT</span>
@@ -111,7 +112,7 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
         </div>
       </div>
 
-      <div className="flex items-center border-r border-border px-3">
+      <div className="flex items-center border-r border-border px-2 md:px-3">
         <BaseDiamond
           onFirst={onFirst}
           onSecond={onSecond}
@@ -119,8 +120,9 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
           size="compact"
         />
       </div>
+      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col justify-center px-4">
+      <div className="hidden min-w-0 flex-1 flex-col justify-center px-3 md:flex md:px-4">
         {gameEnded ? (
           <>
             <span className="text-[10px] font-semibold uppercase tracking-wide text-scorebug-muted">

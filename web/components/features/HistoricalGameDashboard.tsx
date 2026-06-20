@@ -48,14 +48,29 @@ function Panel({
   title,
   children,
   className,
+  flushMobile,
 }: {
   title: string;
   children: React.ReactNode;
   className?: string;
+  flushMobile?: boolean;
 }) {
   return (
-    <section className={cn("flex min-h-[220px] flex-col bg-panel p-3 lg:min-h-0", className)}>
-      <h3 className="mb-2 shrink-0 text-xs font-medium text-muted">{title}</h3>
+    <section
+      className={cn(
+        "flex min-w-0 flex-col overflow-hidden bg-panel md:min-h-[220px] lg:min-h-0",
+        flushMobile ? "min-h-0 p-0 md:min-h-[280px] md:p-3" : "min-h-[280px] p-3",
+        className,
+      )}
+    >
+      <h3
+        className={cn(
+          "shrink-0 text-xs font-medium text-muted",
+          flushMobile ? "hidden md:mb-2 md:block" : "mb-2",
+        )}
+      >
+        {title}
+      </h3>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </section>
   );
@@ -154,12 +169,12 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     !isHalfInningBreak(gameState.inningState);
 
   return (
-    <div className="flex h-screen min-h-0 flex-col bg-background text-foreground">
+    <div className="flex h-screen min-h-0 flex-col overflow-x-hidden bg-background text-foreground">
       <AppNav />
 
-      <div className="border-b border-border bg-surface px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+      <div className="border-b border-border bg-surface px-3 py-3 sm:px-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <Link
               href={seasonHistoryHref}
               className="text-xs text-muted transition-colors hover:text-secondary"
@@ -173,7 +188,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               {score ? ` · Final ${score}` : ""}
             </p>
           </div>
-          <div className="text-right text-xs text-subtle">
+          <div className="shrink-0 text-xs text-subtle sm:text-right">
             {feedSyncedAt ? (
               <span>Feed synced {new Date(feedSyncedAt).toLocaleString()}</span>
             ) : source === "mlb" ? (
@@ -231,7 +246,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             <>
           <Scorebug gameState={displayState} />
 
-          <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1 overflow-x-hidden">
             <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
               <PlayByPlay
                 plays={gameState.plays}
@@ -245,43 +260,15 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               />
             </div>
 
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <div className="border-b border-border p-2 md:hidden">
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] text-muted">At-bat</span>
-                  <select
-                    value={selectedAtBatIndex ?? ""}
-                    onChange={(event) =>
-                      setSelectedAtBatIndex(Number.parseInt(event.target.value, 10))
-                    }
-                    className="w-full border border-border-strong bg-surface-elevated px-2 py-1.5 text-sm text-foreground"
-                  >
-                    {atBatPlays.map((play) => (
-                      <option key={play.atBatIndex} value={play.atBatIndex}>
-                        {play.inning} {play.halfInning} — {play.batterName} ({play.event})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <div className="h-56 shrink-0 border-b border-border md:hidden">
-                <PlayByPlay
-                  plays={gameState.plays}
-                  awayAbbrev={gameState.awayAbbrev}
-                  homeAbbrev={gameState.homeAbbrev}
-                  venueId={gameState.venueId}
-                  selectedAtBatIndex={selectedAtBatIndex}
-                  onSelectAtBat={(play) => setSelectedAtBatIndex(play.atBatIndex)}
-                  autoScrollToLatest={false}
-                  className="h-full"
-                />
-              </div>
-
-              <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
-                <Panel title="Selected at-bat" className="min-h-[380px] flex-[3]">
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+              <div className="flex min-h-0 flex-1 flex-col gap-px overflow-x-hidden bg-border">
+                <Panel
+                  title="Selected at-bat"
+                  flushMobile
+                  className="order-1 shrink-0 overflow-hidden md:order-none md:min-h-[380px] md:flex-[3]"
+                >
                   {displayState && (
-                    <>
+                    <div className="hidden md:block">
                       <BatterVsPitcherRecord
                         batterName={displayState.batterName}
                         pitcherName={displayState.pitcherName}
@@ -295,22 +282,41 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           isLoading={isRispLoading}
                         />
                       )}
-                    </>
+                    </div>
                   )}
                   {(displayState?.atBatPitches.length ?? 0) === 0 ? (
-                    <p className="text-sm text-subtle">No pitch data for this at-bat.</p>
+                    <div className="shrink-0 md:hidden">
+                      <PitchSequence pitches={[]} layout="zone" zoneFirst />
+                    </div>
                   ) : (
-                    <PitchSequence
-                      pitches={displayState?.atBatPitches ?? []}
-                      size="large"
-                      layout="split"
-                      contained
-                      className="min-h-0 flex-1"
-                    />
+                    <>
+                      <div className="shrink-0 md:hidden">
+                        <PitchSequence
+                          pitches={displayState?.atBatPitches ?? []}
+                          layout="zone"
+                          zoneFirst
+                        />
+                      </div>
+                      <div className="hidden min-h-0 flex-1 md:flex">
+                        <PitchSequence
+                          pitches={displayState?.atBatPitches ?? []}
+                          size="large"
+                          layout="split"
+                          contained
+                          className="min-h-0 flex-1"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {(displayState?.atBatPitches.length ?? 0) === 0 && (
+                    <p className="hidden text-sm text-subtle md:block">No pitch data for this at-bat.</p>
                   )}
                 </Panel>
 
-                <Panel title="Outcome odds" className="min-h-[160px] shrink-0 lg:flex-1">
+                <Panel
+                  title="Outcome odds"
+                  className="order-2 hidden min-h-[140px] shrink-0 md:order-none md:flex lg:flex-1"
+                >
                   <div className="flex min-h-0 flex-1 flex-col">
                     {predictionForAtBat ? (
                       <ProbabilityChart
@@ -333,6 +339,39 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                     )}
                   </div>
                 </Panel>
+
+                <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
+                  <PlayByPlay
+                    plays={gameState.plays}
+                    awayAbbrev={gameState.awayAbbrev}
+                    homeAbbrev={gameState.homeAbbrev}
+                    venueId={gameState.venueId}
+                    selectedAtBatIndex={selectedAtBatIndex}
+                    onSelectAtBat={(play) => setSelectedAtBatIndex(play.atBatIndex)}
+                    autoScrollToLatest={false}
+                    variant="feed"
+                    animateEntrance={false}
+                    className="min-h-0 flex-1"
+                    embedPitchesAtBatIndex={selectedAtBatIndex}
+                    feedHeader={
+                      predictionForAtBat ? (
+                        <ProbabilityChart probabilities={probabilities} compact />
+                      ) : predictionsLoading ? (
+                        <p className="py-2 text-center text-sm text-muted">Loading predictions…</p>
+                      ) : predictions.length > 0 ? (
+                        <p className="py-2 text-center text-sm text-muted">
+                          No model snapshot matched this exact at-bat count.
+                        </p>
+                      ) : (
+                        <p className="py-2 text-center text-sm text-muted">
+                          {isLive
+                            ? "Waiting on ingestor for live predictions."
+                            : "No ingestor predictions were stored for this game."}
+                        </p>
+                      )
+                    }
+                  />
+                </div>
               </div>
             </main>
           </div>

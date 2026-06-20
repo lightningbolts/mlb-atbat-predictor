@@ -82,7 +82,7 @@ export function BallTrajectory3D({ hit, venueId, className }: BallTrajectory3DPr
 
   return (
     <div className={className}>
-      <div className="overflow-hidden rounded border border-border bg-field-chart-canvas">
+      <div className="h-[220px] overflow-hidden rounded border border-border bg-field-chart-canvas sm:h-[280px]">
         <Canvas
           camera={{
             position: cameraPosition,
@@ -91,13 +91,17 @@ export function BallTrajectory3D({ hit, venueId, className }: BallTrajectory3DPr
             far: 500,
           }}
           gl={{ antialias: true }}
-          style={{ height: 280, width: "100%", touchAction: "none" }}
+          style={{ height: "100%", width: "100%", touchAction: "none" }}
         >
           <Scene hit={hit} venueId={venueId} />
         </Canvas>
       </div>
       <p className="mt-1.5 text-center text-[10px] text-subtle">
-        {TRAJECTORY_CONTROLS_HINT} · estimated path from launch angle &amp; distance
+        <span className="sm:hidden">Drag to rotate · pinch to zoom</span>
+        <span className="hidden sm:inline">
+          {TRAJECTORY_CONTROLS_HINT} · estimated path from launch angle &amp; distance
+        </span>
+        <span className="sm:hidden"> · estimated path</span>
       </p>
     </div>
   );

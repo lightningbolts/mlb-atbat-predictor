@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
@@ -13,6 +13,7 @@ import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDe
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { GameSidebar } from "@/components/features/GameSidebar";
+import { MobileGamePicker } from "@/components/features/MobileGamePicker";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
@@ -27,6 +28,7 @@ import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
+import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
 import { LIVE_GAME_STATUSES, type ActiveGame } from "@/types/mlb";
 
@@ -86,8 +88,18 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
     gameState.gameStatus === "Live" &&
     !isHalfInningBreak(gameState.inningState);
 
+  const atBatInProgress =
+    gameState?.gameStatus === "Live" &&
+    !showBreakUI &&
+    (atBatViewState?.atBatPitches.length ?? 0) > 0;
+
+  const lastCompletedAtBatIndex = useMemo(() => {
+    const atBats = gameState?.plays.filter(isPlayByPlayAtBat) ?? [];
+    return atBats.at(-1)?.atBatIndex ?? null;
+  }, [gameState?.plays]);
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-x-hidden">
       <ConnectionIndicator status={connectionStatus} error={error} />
       <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -134,40 +146,22 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
           />
         </div>
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="border-b border-border p-2 lg:hidden">
-            <select
-              value={selectedGamePk}
-              onChange={(e) => onSelectGame(Number(e.target.value))}
-              className="w-full border border-border-strong bg-surface-elevated px-2 py-1.5 text-sm text-foreground"
-            >
-              {games.map((game) => (
-                <option key={game.gamePk} value={game.gamePk}>
-                  {game.label} ({game.status})
-                </option>
-              ))}
-            </select>
-          </div>
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+          <MobileGamePicker
+            games={games}
+            selectedGamePk={selectedGamePk}
+            onSelectGame={onSelectGame}
+          />
 
           {showSkeleton ? (
             <DashboardSkeleton />
           ) : (
-            <>
-              <div className="h-56 shrink-0 border-b border-border md:hidden">
-                <PlayByPlay
-                  plays={gameState?.plays ?? []}
-                  awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
-                  homeAbbrev={gameState?.homeAbbrev ?? "HME"}
-                  venueId={gameState?.venueId}
-                  className="h-full"
-                />
-              </div>
-
-              <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
-                <Panel
-                  title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
-                  className="min-h-[380px] flex-[3]"
-                >
+            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-x-hidden bg-border">
+              <Panel
+                title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
+                flushMobile
+                className="order-1 shrink-0 overflow-hidden md:order-none md:min-h-[380px] md:flex-[3]"
+              >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
                       <p className="text-sm text-secondary">
@@ -188,7 +182,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                   ) : (
                     <>
                   {atBatViewState && !showBreakUI && (
-                    <>
+                    <div className="hidden md:block">
                       <BatterVsPitcherRecord
                         batterName={atBatViewState.batterName}
                         pitcherName={atBatViewState.pitcherName}
@@ -202,7 +196,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                           isLoading={isRispLoading}
                         />
                       )}
-                    </>
+                    </div>
                   )}
                   {showBreakUI && dueUp ? (
                     <ul className="space-y-2">
@@ -241,24 +235,37 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                     </ul>
                   ) : showBreakUI ? (
                     <p className="text-sm text-subtle">Loading due up…</p>
-                  ) : (atBatViewState?.atBatPitches.length ?? 0) === 0 ? (
-                    <p className="text-sm text-subtle">Waiting for first pitch…</p>
                   ) : (
-                    <PitchSequence
-                      pitches={atBatViewState?.atBatPitches ?? []}
-                      size="large"
-                      layout="split"
-                      scrollToLatest
-                      contained
-                      animateEntrance
-                      className="min-h-0 flex-1"
-                    />
+                    <>
+                      <div className="shrink-0 md:hidden">
+                        <PitchSequence
+                          pitches={atBatViewState?.atBatPitches ?? []}
+                          layout="zone"
+                          zoneFirst
+                          animateEntrance
+                        />
+                      </div>
+                      <div className="hidden min-h-0 flex-1 md:flex">
+                        <PitchSequence
+                          pitches={atBatViewState?.atBatPitches ?? []}
+                          size="large"
+                          layout="split"
+                          scrollToLatest
+                          contained
+                          animateEntrance
+                          className="min-h-0 flex-1"
+                        />
+                      </div>
+                    </>
                   )}
                     </>
                   )}
                 </Panel>
 
-                <Panel title="Outcome odds" className="min-h-[160px] shrink-0 lg:flex-1">
+                <Panel
+                  title="Outcome odds"
+                  className="order-2 hidden min-h-[140px] shrink-0 md:order-none md:flex lg:flex-1"
+                >
                   <div className="flex min-h-0 flex-1 flex-col">
                     {atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
                       <ProbabilityChart
@@ -276,8 +283,39 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                     )}
                   </div>
                 </Panel>
+
+                <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
+                  <PlayByPlay
+                    plays={gameState?.plays ?? []}
+                    awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
+                    homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+                    venueId={gameState?.venueId}
+                    variant="feed"
+                    className="min-h-0 flex-1"
+                    autoScrollToLatest
+                    livePitches={atBatInProgress ? atBatViewState?.atBatPitches : undefined}
+                    animateLivePitches={atBatInProgress}
+                    embedPitchesAtBatIndex={
+                      atBatInProgress ? null : lastCompletedAtBatIndex
+                    }
+                    feedHeader={
+                      atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
+                        <ProbabilityChart
+                          key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}-mobile`}
+                          probabilities={probabilities}
+                          compact
+                        />
+                      ) : (
+                        <p className="py-2 text-center text-sm text-muted">
+                          {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")
+                            ? showBreakUI ? "Between innings" : "Waiting for at-bat…"
+                            : "Available when live."}
+                        </p>
+                      )
+                    }
+                  />
+                </div>
               </div>
-            </>
           )}
         </main>
       </div>
@@ -299,14 +337,30 @@ function Panel({
   title,
   children,
   className,
+  flushMobile,
 }: {
   title: string;
   children: React.ReactNode;
   className?: string;
+  /** Edge-to-edge strike zone on mobile (Gameday-style). */
+  flushMobile?: boolean;
 }) {
   return (
-    <section className={cn("flex min-h-[220px] flex-col bg-panel p-3 lg:min-h-0", className)}>
-      <h3 className="mb-2 shrink-0 text-xs font-medium text-muted">{title}</h3>
+    <section
+      className={cn(
+        "flex min-w-0 flex-col overflow-hidden bg-panel md:min-h-[220px] lg:min-h-0",
+        flushMobile ? "min-h-0 p-0 md:min-h-[280px] md:p-3" : "min-h-[280px] p-3",
+        className,
+      )}
+    >
+      <h3
+        className={cn(
+          "shrink-0 text-xs font-medium text-muted",
+          flushMobile ? "hidden md:mb-2 md:block" : "mb-2",
+        )}
+      >
+        {title}
+      </h3>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </section>
   );
@@ -360,7 +414,7 @@ export function LiveDashboard({ initialGames, scheduleError }: LiveDashboardProp
   }
 
   return (
-    <div className="flex h-screen min-h-0 flex-col bg-background text-foreground">
+    <div className="flex h-screen min-h-0 flex-col overflow-x-hidden bg-background text-foreground">
       <AppNav />
       <div className="flex min-h-0 flex-1">
         <div className="hidden h-full w-52 shrink-0 border-r border-border lg:block">

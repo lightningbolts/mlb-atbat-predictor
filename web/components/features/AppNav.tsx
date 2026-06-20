@@ -57,12 +57,13 @@ export function AppNav() {
   const pathname = usePathname();
 
   return (
-    <header className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3">
-      <div className="flex items-center gap-6">
-        <Link href="/" className="text-sm font-medium text-foreground">
-          MLB At-Bat Predictor
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-6">
+        <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
+          <span className="sm:hidden">MLB Predictor</span>
+          <span className="hidden sm:inline">MLB At-Bat Predictor</span>
         </Link>
-        <nav className="flex items-center gap-1" aria-label="Main">
+        <nav className="flex shrink-0 items-center gap-0.5 sm:gap-1" aria-label="Main">
           {NAV_ITEMS.map((item) => {
             const isActive =
               item.href === "/"

@@ -10,6 +10,11 @@ export function useEntranceIndex(length: number, enabled: boolean): number {
   const seenLengthRef = useRef(enabled ? length : 0);
   const prevLengthRef = useRef(length);
 
+  useEffect(() => {
+    if (!enabled) return;
+    seenLengthRef.current = length;
+  }, [enabled, length]);
+
   if (!enabled) return length;
 
   if (length === 0) {
@@ -20,11 +25,6 @@ export function useEntranceIndex(length: number, enabled: boolean): number {
 
   const entranceFromIndex = seenLengthRef.current;
   prevLengthRef.current = length;
-
-  useEffect(() => {
-    if (!enabled) return;
-    seenLengthRef.current = length;
-  }, [enabled, length]);
 
   return entranceFromIndex;
 }

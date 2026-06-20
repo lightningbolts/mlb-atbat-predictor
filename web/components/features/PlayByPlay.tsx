@@ -4,6 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { BaseDiamond } from "@/components/features/BaseDiamond";
+import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
 import { cn } from "@/lib/utils";
 import {
@@ -12,7 +13,7 @@ import {
   formatRunnerBases,
   isHalfInningStart,
 } from "@/lib/mlb/situationFormat";
-import type { GameSituation, PlayByPlayEntry, PlayDetail } from "@/types/mlb-live";
+import type { GameSituation, PlayByPlayEntry, PlayDetail, PlayPitch } from "@/types/mlb-live";
 import { formatInningHalf } from "@/lib/utils";
 
 interface PlayByPlayProps {
@@ -26,26 +27,41 @@ interface PlayByPlayProps {
   autoScrollToLatest?: boolean;
   /** Fade in newly completed at-bats (live feed). */
   animateEntrance?: boolean;
+  /** Sidebar uses collapsible innings; feed is a flat scrollable list for mobile. */
+  variant?: "sidebar" | "feed";
+  /** Rendered at the top of the feed scroll area (e.g. outcome odds on mobile). */
+  feedHeader?: React.ReactNode;
+  /** Label for the collapsible feed header (feed variant). */
+  feedHeaderTitle?: string;
+  /** Start with the feed header collapsed (mobile feed). */
+  feedHeaderCollapsedDefault?: boolean;
+  /** In-progress at-bat pitches appended to the feed (live Gameday-style). */
+  livePitches?: PlayPitch[];
+  /** Animate newly arrived live pitches in the feed. */
+  animateLivePitches?: boolean;
+  /** Show embedded pitch rows on the completed at-bat with this index. */
+  embedPitchesAtBatIndex?: number | null;
 }
 
 interface InningGroup {
   key: string;
   label: string;
-  plays: PlayByPlayEntry[];
+  playIndices: number[];
 }
 
 function groupByInning(plays: PlayByPlayEntry[]): InningGroup[] {
   const groups: InningGroup[] = [];
 
-  for (const play of plays) {
+  for (let index = 0; index < plays.length; index++) {
+    const play = plays[index];
     const key = `${play.inning}-${play.halfInning}`;
     const label = `${play.inning} ${formatInningHalf(play.halfInning)}`;
 
     const existing = groups.find((g) => g.key === key);
     if (existing) {
-      existing.plays.push(play);
+      existing.playIndices.push(index);
     } else {
-      groups.push({ key, label, plays: [play] });
+      groups.push({ key, label, playIndices: [index] });
     }
   }
 
@@ -125,18 +141,16 @@ function GameEventRow({
   play: PlayByPlayEntry;
   animate: boolean;
 }) {
-  const abbrev = gameEventAbbrev(play.event, play.description);
-
   return (
     <div
       className={cn(
-        "flex items-start gap-2 border-t border-border/30 px-3 py-2",
+        "border-t border-border/30 px-3 py-2",
         animate && "animate-play_in",
       )}
     >
-      <span className="shrink-0 font-mono text-[11px] text-muted">{abbrev}</span>
-      <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted">
-        {play.description}
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
+        <GameEventBadge event={play.event} description={play.description} />
+        <span>{play.description}</span>
       </p>
     </div>
   );
@@ -219,14 +233,333 @@ function shouldShowThreeOuts(
   group: InningGroup,
   groupIndex: number,
   groups: InningGroup[],
+  plays: PlayByPlayEntry[],
 ): boolean {
-  const lastPlay = group.plays[group.plays.length - 1];
+  const lastIndex = group.playIndices[group.playIndices.length - 1];
+  const lastPlay = lastIndex != null ? plays[lastIndex] : undefined;
   if (!lastPlay) return false;
 
   const isLatestGroup = groupIndex === groups.length - 1;
   if (!isLatestGroup) return true;
 
   return lastPlay.outs === 3;
+}
+
+function eventBadgeClass(event: string): string {
+  const abbrev = eventAbbrev(event);
+  if (abbrev === "K" || abbrev === "FO" || abbrev === "GO" || abbrev === "PO" || abbrev === "LO") {
+    return "bg-red-500/15 text-red-700 dark:text-red-400";
+  }
+  if (abbrev === "BB" || abbrev === "IBB" || abbrev === "HBP") {
+    return "bg-green-500/15 text-green-700 dark:text-green-400";
+  }
+  if (abbrev === "HR" || abbrev === "2B" || abbrev === "3B" || abbrev === "1B") {
+    return "bg-sky-500/15 text-sky-700 dark:text-sky-400";
+  }
+  return "bg-overlay text-muted";
+}
+
+function PlayEventBadge({
+  label,
+  className,
+}: {
+  label: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none align-middle",
+        className,
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function AtBatEventBadge({ event }: { event: string }) {
+  return (
+    <PlayEventBadge label={eventAbbrev(event)} className={eventBadgeClass(event)} />
+  );
+}
+
+function GameEventBadge({
+  event,
+  description,
+}: {
+  event: string;
+  description: string;
+}) {
+  return (
+    <PlayEventBadge
+      label={gameEventAbbrev(event, description)}
+      className="bg-overlay text-muted"
+    />
+  );
+}
+
+function PlayFeedRow({
+  play,
+  awayAbbrev,
+  homeAbbrev,
+  selectedAtBatIndex,
+  onSelectAtBat,
+  setSelectedPlay,
+  animate,
+  embeddedPitches,
+  pitchEntranceFromIndex = 0,
+}: {
+  play: PlayByPlayEntry;
+  awayAbbrev: string;
+  homeAbbrev: string;
+  selectedAtBatIndex: number | null;
+  onSelectAtBat?: (play: PlayByPlayEntry) => void;
+  setSelectedPlay: (play: PlayDetail | null) => void;
+  animate: boolean;
+  embeddedPitches?: PlayPitch[];
+  pitchEntranceFromIndex?: number;
+}) {
+  const showSituation = !isHalfInningStart(play.situationBefore);
+  const selected = selectedAtBatIndex === play.atBatIndex;
+
+  return (
+    <div className={cn(animate && "animate-play_in")}>
+      {showSituation && (
+        <SituationMarker
+          situation={play.situationBefore}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
+      )}
+      {embeddedPitches && embeddedPitches.length > 0 && (
+        <PitchFeedList
+          pitches={embeddedPitches}
+          entranceFromIndex={pitchEntranceFromIndex}
+        />
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          onSelectAtBat?.(play);
+          setSelectedPlay(play.detail);
+        }}
+        className={cn(
+          "flex w-full items-start gap-2 border-b border-border/40 px-3 py-2.5 text-left active:bg-hover",
+          play.isScoringPlay && "border-l-2 border-l-amber-600/60",
+          selected && "bg-overlay ring-1 ring-inset ring-border-strong",
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug text-foreground">
+            <AtBatEventBadge event={play.event} />
+            <span className="font-medium">{play.batterName}</span>
+            <span className="text-[12px] text-muted">{play.description}</span>
+          </p>
+        </div>
+        <span className="shrink-0 pt-0.5 font-mono text-[10px] tabular-nums text-subtle">
+          {formatBatterLine(play.batterHits, play.batterAtBats)}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+function GameEventFeedRow({
+  play,
+  animate,
+}: {
+  play: PlayByPlayEntry;
+  animate: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "border-b border-border/40 px-3 py-2",
+        animate && "animate-play_in",
+      )}
+    >
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
+        <GameEventBadge event={play.event} description={play.description} />
+        <span>{play.description}</span>
+      </p>
+    </div>
+  );
+}
+
+function CollapsibleFeedHeader({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="shrink-0 border-b border-border bg-panel">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-hover"
+      >
+        <span className="text-xs font-medium text-muted">{title}</span>
+        <span className="text-[10px] text-subtle">{open ? "−" : "+"}</span>
+      </button>
+      {open ? <div className="border-t border-border/50 px-3 py-3">{children}</div> : null}
+    </div>
+  );
+}
+
+function InningFeedHeader({
+  label,
+  playCount,
+  isOpen,
+  onToggle,
+}: {
+  label: string;
+  playCount: number;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="sticky top-0 z-10 flex w-full items-center justify-between border-b border-border bg-surface-elevated/95 px-3 py-2 text-left backdrop-blur-sm"
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-secondary">
+        {label}
+      </span>
+      <span className="flex items-center gap-2 text-[10px] text-subtle">
+        {playCount} plays
+        <span className="text-muted">{isOpen ? "−" : "+"}</span>
+      </span>
+    </button>
+  );
+}
+
+function PlayFeed({
+  plays,
+  groups,
+  awayAbbrev,
+  homeAbbrev,
+  entranceFromIndex,
+  animateEntrance,
+  selectedAtBatIndex,
+  onSelectAtBat,
+  setSelectedPlay,
+  expanded,
+  onToggleInning,
+  livePitches = [],
+  livePitchEntranceFrom,
+  embedPitchesAtBatIndex = null,
+}: {
+  plays: PlayByPlayEntry[];
+  groups: InningGroup[];
+  awayAbbrev: string;
+  homeAbbrev: string;
+  entranceFromIndex: number;
+  animateEntrance: boolean;
+  selectedAtBatIndex: number | null;
+  onSelectAtBat?: (play: PlayByPlayEntry) => void;
+  setSelectedPlay: (play: PlayDetail | null) => void;
+  expanded: Set<string>;
+  onToggleInning: (key: string) => void;
+  livePitches?: PlayPitch[];
+  livePitchEntranceFrom: number;
+  embedPitchesAtBatIndex?: number | null;
+}) {
+  const inProgress = livePitches.length > 0;
+
+  return (
+    <div>
+      {groups.map((group, groupIndex) => {
+        const isOpen = expanded.has(group.key);
+        const showThreeOuts = shouldShowThreeOuts(group, groupIndex, groups, plays);
+        const lastIndex = group.playIndices[group.playIndices.length - 1];
+        const lastPlay = lastIndex != null ? plays[lastIndex] : undefined;
+        const isLatestGroup = groupIndex === groups.length - 1;
+
+        return (
+          <section key={group.key}>
+            <InningFeedHeader
+              label={group.label}
+              playCount={group.playIndices.length}
+              isOpen={isOpen}
+              onToggle={() => onToggleInning(group.key)}
+            />
+            {isOpen && (
+              <>
+                {group.playIndices.map((playIndex) => {
+              const play = plays[playIndex];
+              const animate = animateEntrance && playIndex >= entranceFromIndex;
+
+              if (play.isAtBat === false) {
+                return (
+                  <GameEventFeedRow
+                    key={`play-${playIndex}`}
+                    play={play}
+                    animate={animate}
+                  />
+                );
+              }
+
+              const embeddedPitches =
+                !inProgress &&
+                embedPitchesAtBatIndex != null &&
+                play.atBatIndex === embedPitchesAtBatIndex &&
+                play.detail.pitches.length > 0
+                  ? play.detail.pitches
+                  : undefined;
+
+              return (
+                <PlayFeedRow
+                  key={`play-${playIndex}`}
+                  play={play}
+                  awayAbbrev={awayAbbrev}
+                  homeAbbrev={homeAbbrev}
+                  selectedAtBatIndex={selectedAtBatIndex}
+                  onSelectAtBat={onSelectAtBat}
+                  setSelectedPlay={setSelectedPlay}
+                  animate={animate}
+                  embeddedPitches={embeddedPitches}
+                />
+              );
+            })}
+            {isLatestGroup && inProgress && (
+              <PitchFeedList
+                pitches={livePitches}
+                entranceFromIndex={livePitchEntranceFrom}
+              />
+            )}
+            {showThreeOuts && lastPlay && (
+              <ThreeOutsBlurb
+                key={`outs-${group.key}`}
+                situation={{
+                  awayScore: lastPlay.awayScore,
+                  homeScore: lastPlay.homeScore,
+                  outs: 3,
+                  bases: lastPlay.bases,
+                  onFirst: lastPlay.onFirst,
+                  onSecond: lastPlay.onSecond,
+                  onThird: lastPlay.onThird,
+                }}
+                awayAbbrev={awayAbbrev}
+                homeAbbrev={homeAbbrev}
+                animate={animateEntrance && lastIndex >= entranceFromIndex}
+              />
+            )}
+              </>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
 }
 
 function PlayOutcomeCard({
@@ -272,20 +605,17 @@ function PlayOutcomeCard({
         )}
       >
         <div className="mb-1.5 flex items-baseline justify-between gap-2">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <span className="shrink-0 font-mono text-[11px] text-muted">
-              {eventAbbrev(play.event)}
-            </span>
-            <span className="truncate text-[14px] font-medium text-foreground">
-              {play.batterName}
-            </span>
-          </div>
+          <span className="truncate text-[14px] font-medium text-foreground">
+            {play.batterName}
+          </span>
           <span className="shrink-0 font-mono text-[11px] tabular-nums text-subtle">
             {formatBatterLine(play.batterHits, play.batterAtBats)}
           </span>
         </div>
-        <p className="line-clamp-2 text-[13px] leading-relaxed text-muted">
-          {play.description}
+        <p className="line-clamp-3 text-[13px] leading-relaxed text-muted">
+          <AtBatEventBadge event={play.event} />
+          {" "}
+          <span>{play.description}</span>
         </p>
         {contact && (
           <p className="mt-1 font-mono text-[11px] text-subtle">{contact}</p>
@@ -305,18 +635,24 @@ export const PlayByPlay = memo(function PlayByPlay({
   onSelectAtBat,
   autoScrollToLatest = true,
   animateEntrance = true,
+  variant = "sidebar",
+  feedHeader,
+  feedHeaderTitle = "Outcome odds",
+  feedHeaderCollapsedDefault = true,
+  livePitches,
+  animateLivePitches = false,
+  embedPitchesAtBatIndex = null,
 }: PlayByPlayProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(plays.length);
+  const prevLivePitchCountRef = useRef(livePitches?.length ?? 0);
   const groups = useMemo(() => groupByInning(plays), [plays]);
-  const playIndexByAtBat = useMemo(() => {
-    const map = new Map<number, number>();
-    plays.forEach((play, index) => {
-      map.set(play.atBatIndex, index);
-    });
-    return map;
-  }, [plays]);
   const entranceFromIndex = useEntranceIndex(plays.length, animateEntrance);
+  const livePitchEntranceFrom = useEntranceIndex(
+    livePitches?.length ?? 0,
+    animateLivePitches,
+  );
+  const livePitchesList = livePitches ?? [];
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     const latest = groups[groups.length - 1]?.key;
@@ -339,6 +675,14 @@ export const PlayByPlay = memo(function PlayByPlay({
     prevCountRef.current = plays.length;
   }, [plays.length, autoScrollToLatest]);
 
+  useEffect(() => {
+    if (!autoScrollToLatest || livePitchesList.length === 0) return;
+    if (livePitchesList.length > prevLivePitchCountRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+    prevLivePitchCountRef.current = livePitchesList.length;
+  }, [livePitchesList.length, autoScrollToLatest]);
+
   const toggleInning = (key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -350,20 +694,57 @@ export const PlayByPlay = memo(function PlayByPlay({
 
   return (
     <>
-      <div className={cn("flex h-full min-h-0 flex-col bg-surface", className)}>
+      <div className={cn("flex h-full min-h-0 w-full max-w-full flex-col bg-surface", className)}>
         <div className="shrink-0 border-b border-border px-3 py-2">
           <h2 className="text-xs font-medium text-muted">Play-by-play</h2>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {feedHeader && variant === "feed" ? (
+          <CollapsibleFeedHeader
+            title={feedHeaderTitle}
+            defaultOpen={!feedHeaderCollapsedDefault}
+          >
+            {feedHeader}
+          </CollapsibleFeedHeader>
+        ) : null}
+
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+          {feedHeader && variant !== "feed" ? (
+            <div className="border-b border-border bg-panel px-3 py-3">{feedHeader}</div>
+          ) : null}
           {plays.length === 0 ? (
-            <p className="px-3 py-6 text-sm text-subtle">No plays yet.</p>
+            livePitchesList.length > 0 ? (
+              <PitchFeedList
+                pitches={livePitchesList}
+                entranceFromIndex={livePitchEntranceFrom}
+              />
+            ) : (
+              <p className="px-3 py-6 text-sm text-subtle">No plays yet.</p>
+            )
+          ) : variant === "feed" ? (
+            <PlayFeed
+              plays={plays}
+              groups={groups}
+              awayAbbrev={awayAbbrev}
+              homeAbbrev={homeAbbrev}
+              entranceFromIndex={entranceFromIndex}
+              animateEntrance={animateEntrance}
+              selectedAtBatIndex={selectedAtBatIndex}
+              onSelectAtBat={onSelectAtBat}
+              setSelectedPlay={setSelectedPlay}
+              expanded={expanded}
+              onToggleInning={toggleInning}
+              livePitches={livePitchesList}
+              livePitchEntranceFrom={livePitchEntranceFrom}
+              embedPitchesAtBatIndex={embedPitchesAtBatIndex}
+            />
           ) : (
             <div>
               {groups.map((group, groupIndex) => {
                 const isOpen = expanded.has(group.key);
-                const showThreeOuts = shouldShowThreeOuts(group, groupIndex, groups);
-                const lastPlay = group.plays[group.plays.length - 1];
+                const showThreeOuts = shouldShowThreeOuts(group, groupIndex, groups, plays);
+                const lastIndex = group.playIndices[group.playIndices.length - 1];
+                const lastPlay = lastIndex != null ? plays[lastIndex] : undefined;
 
                 return (
                   <div key={group.key} className="border-b border-border/80">
@@ -376,22 +757,22 @@ export const PlayByPlay = memo(function PlayByPlay({
                         {group.label}
                       </span>
                       <span className="flex items-center gap-2 text-[10px] text-subtle">
-                        {group.plays.length} plays
+                        {group.playIndices.length} plays
                         <span className="text-muted">{isOpen ? "−" : "+"}</span>
                       </span>
                     </button>
 
                     {isOpen && (
                       <>
-                        {group.plays.map((play) => {
-                          const globalIndex = playIndexByAtBat.get(play.atBatIndex) ?? 0;
+                        {group.playIndices.map((playIndex) => {
+                          const play = plays[playIndex];
                           const animate =
-                            animateEntrance && globalIndex >= entranceFromIndex;
+                            animateEntrance && playIndex >= entranceFromIndex;
 
                           if (play.isAtBat === false) {
                             return (
                               <GameEventRow
-                                key={`evt-${play.atBatIndex}-${globalIndex}`}
+                                key={`play-${playIndex}`}
                                 play={play}
                                 animate={animate}
                               />
@@ -400,7 +781,7 @@ export const PlayByPlay = memo(function PlayByPlay({
 
                           return (
                             <PlayOutcomeCard
-                              key={play.atBatIndex}
+                              key={`play-${playIndex}`}
                               play={play}
                               awayAbbrev={awayAbbrev}
                               homeAbbrev={homeAbbrev}
@@ -413,6 +794,7 @@ export const PlayByPlay = memo(function PlayByPlay({
                         })}
                         {showThreeOuts && lastPlay && (
                           <ThreeOutsBlurb
+                            key={`outs-${group.key}`}
                             situation={{
                               awayScore: lastPlay.awayScore,
                               homeScore: lastPlay.homeScore,
@@ -424,11 +806,7 @@ export const PlayByPlay = memo(function PlayByPlay({
                             }}
                             awayAbbrev={awayAbbrev}
                             homeAbbrev={homeAbbrev}
-                            animate={
-                              animateEntrance &&
-                              (playIndexByAtBat.get(lastPlay.atBatIndex) ?? 0) >=
-                                entranceFromIndex
-                            }
+                            animate={animateEntrance && lastIndex >= entranceFromIndex}
                           />
                         )}
                       </>

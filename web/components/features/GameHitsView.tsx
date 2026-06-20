@@ -24,7 +24,7 @@ const GameHitsTrajectory3D = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[360px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle">
+      <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
         Loading trajectories…
       </div>
     ),
@@ -77,7 +77,7 @@ function HitRow({
       type="button"
       onClick={onSelect}
       className={cn(
-        "w-full border-t border-border/50 px-3 py-2.5 text-left hover:bg-hover",
+        "w-full border-t border-border/50 px-3 py-3 text-left hover:bg-hover sm:py-2.5",
         selected && "bg-overlay ring-1 ring-inset ring-border-strong",
       )}
     >
@@ -99,7 +99,7 @@ function HitRow({
           {gameHit.inning} {formatInningHalf(gameHit.halfInning)}
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
         <span className="font-mono tabular-nums">
           {awayAbbrev} {gameHit.awayScore}–{gameHit.homeScore} {homeAbbrev}
         </span>
@@ -144,21 +144,19 @@ export function GameHitsView({
     return (
       <div className={cn("flex flex-1 flex-col gap-4 p-4", className)}>
         <Skeleton className="h-16 w-full" />
-        <div className="grid flex-1 gap-4 lg:grid-cols-2">
-          <Skeleton className="aspect-square w-full" />
-          <Skeleton className="h-full min-h-[280px] w-full" />
-        </div>
-        <Skeleton className="h-[360px] w-full" />
+        <Skeleton className="aspect-square w-full max-w-[480px]" />
+        <Skeleton className="h-[240px] w-full sm:h-[300px] xl:h-[360px]" />
+        <Skeleton className="h-48 w-full" />
       </div>
     );
   }
 
   return (
     <>
-      <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
-        <div className="shrink-0 border-b border-border bg-surface px-4 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+      <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+        <div className="shrink-0 border-b border-border bg-surface px-3 py-3 sm:px-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <h2 className="text-sm font-medium text-foreground">Spray chart</h2>
               <p className="mt-0.5 text-xs text-muted">
                 {stats.total > 0
@@ -168,7 +166,7 @@ export function GameHitsView({
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-x-3 gap-y-1.5 sm:justify-end">
               {HIT_TYPES.map((type) => {
                 const count =
                   type === "Single"
@@ -210,26 +208,53 @@ export function GameHitsView({
             <p className="text-sm text-subtle">No tracked hits yet.</p>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="grid min-h-0 flex-1 gap-px bg-border lg:grid-cols-[minmax(0,1fr)_300px]">
-              <div className="flex min-h-[320px] flex-col bg-panel p-4 lg:min-h-0">
-                <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
-                  Field view
-                </p>
-                <GameHitsSprayChart
-                  hits={hits}
-                  venueId={venueId}
-                  selectedAtBatIndex={selectedAtBatIndex}
-                  onSelectHit={handleSelectHit}
-                  className="mx-auto max-w-[480px]"
-                />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="grid gap-px bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
+              <div className="flex flex-col gap-px bg-border">
+                <section className="bg-panel p-3 sm:p-4">
+                  <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
+                    Field view
+                  </p>
+                  <GameHitsSprayChart
+                    hits={hits}
+                    venueId={venueId}
+                    selectedAtBatIndex={selectedAtBatIndex}
+                    onSelectHit={handleSelectHit}
+                    className="mx-auto w-full max-w-[min(100%,480px)]"
+                  />
+                </section>
+
+                <section className="bg-panel p-3 sm:p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+                      3D trajectories
+                    </p>
+                    {selectedHit && (
+                      <button
+                        type="button"
+                        onClick={() => setDetailPlay(selectedHit.detail)}
+                        className="text-[11px] text-secondary underline-offset-2 hover:underline"
+                      >
+                        {selectedHit.batterName} — {selectedHit.event} details
+                      </button>
+                    )}
+                  </div>
+                  <GameHitsTrajectory3D
+                    hits={hits}
+                    venueId={venueId}
+                    selectedAtBatIndex={selectedAtBatIndex}
+                    className="mx-auto w-full max-w-4xl"
+                  />
+                </section>
               </div>
 
-              <div className="flex min-h-[240px] flex-col bg-surface lg:min-h-0">
+              <aside className="flex flex-col bg-surface xl:sticky xl:top-0 xl:max-h-[calc(100dvh-10rem)] xl:min-h-0">
                 <div className="shrink-0 border-b border-border px-3 py-2">
-                  <h3 className="text-xs font-medium text-muted">Hits</h3>
+                  <h3 className="text-xs font-medium text-muted">
+                    Hits <span className="font-mono tabular-nums text-subtle">({hits.length})</span>
+                  </h3>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="max-h-[min(50vh,28rem)] overflow-y-auto overscroll-y-contain xl:max-h-none xl:flex-1 xl:min-h-0">
                   {hits.map((gameHit) => (
                     <HitRow
                       key={gameHit.atBatIndex}
@@ -241,30 +266,7 @@ export function GameHitsView({
                     />
                   ))}
                 </div>
-              </div>
-            </div>
-
-            <div className="border-t border-border bg-panel p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
-                  3D trajectories
-                </p>
-                {selectedHit && (
-                  <button
-                    type="button"
-                    onClick={() => setDetailPlay(selectedHit.detail)}
-                    className="text-[11px] text-secondary underline-offset-2 hover:underline"
-                  >
-                    {selectedHit.batterName} — {selectedHit.event} details
-                  </button>
-                )}
-              </div>
-              <GameHitsTrajectory3D
-                hits={hits}
-                venueId={venueId}
-                selectedAtBatIndex={selectedAtBatIndex}
-                className="mx-auto max-w-4xl"
-              />
+              </aside>
             </div>
           </div>
         )}

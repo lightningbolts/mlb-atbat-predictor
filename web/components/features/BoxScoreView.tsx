@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
@@ -371,15 +371,21 @@ export function BoxScoreView({
   offenseTeamId,
 }: BoxScoreViewProps) {
   const [selectedSide, setSelectedSide] = useState<"away" | "home">("away");
+  const userSelectedRef = useRef(false);
 
   useEffect(() => {
-    if (offenseTeamId == null || !boxScore) return;
+    if (userSelectedRef.current || offenseTeamId == null || !boxScore) return;
     if (offenseTeamId === boxScore.home.teamId) {
       setSelectedSide("home");
     } else if (offenseTeamId === boxScore.away.teamId) {
       setSelectedSide("away");
     }
   }, [offenseTeamId, boxScore]);
+
+  const handleSelectSide = (side: "away" | "home") => {
+    userSelectedRef.current = true;
+    setSelectedSide(side);
+  };
 
   if (isLoading && !boxScore) {
     return (
@@ -436,7 +442,7 @@ export function BoxScoreView({
               <button
                 key={side}
                 type="button"
-                onClick={() => setSelectedSide(side)}
+                onClick={() => handleSelectSide(side)}
                 className={cn(
                   "border-b-2 py-2.5 text-sm font-medium transition-colors",
                   isActive

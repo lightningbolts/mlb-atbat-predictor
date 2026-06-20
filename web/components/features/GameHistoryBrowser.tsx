@@ -48,7 +48,7 @@ function GameRow({ game, historyContext }: GameRowProps) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-between gap-4 border-b border-border/60 px-4 py-3 transition-colors hover:bg-hover"
+      className="flex flex-col gap-2 border-b border-border/60 px-4 py-3 transition-colors hover:bg-hover sm:flex-row sm:items-center sm:justify-between sm:gap-4"
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -69,7 +69,7 @@ function GameRow({ game, historyContext }: GameRowProps) {
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-4">
+      <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-end">
         {score ? (
           <span className="font-mono text-sm tabular-nums text-foreground">{score}</span>
         ) : (
