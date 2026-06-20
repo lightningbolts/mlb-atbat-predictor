@@ -3,18 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  appendPlayByPlay,
   createPlayByPlayParseState,
-  fetchMLBLiveFeed,
   liveStateFingerprint,
-  parseLiveFeedSnapshot,
-  syncPlayByPlayFromFeed,
+  parseStateFromSnapshot,
+  syncOngoingGameEvents,
   type PlayByPlayParseState,
 } from "@/lib/mlb/liveFeed";
+import { pollLiveFeed, workerPayloadToSnapshot } from "@/lib/mlb/liveFeedClient";
 import type { AllPlayRaw, LiveGameState, PlayPitch } from "@/types/mlb-live";
 
 import { useRapidPoll } from "./useRapidPoll";
 
-/** Overlapping polls — next request starts while prior fetch is in flight. */
+/** Overlapping polls — worker parses JSON off-thread; pitch polls skip allPlays. */
 const LIVE_FEED_POLL_MS = 100;
 const MAX_IN_FLIGHT = 2;
 
@@ -69,11 +70,14 @@ function applyGameState(
   prev: LiveGameState | null,
   next: LiveGameState,
 ): LiveGameState {
+  if (prev && isStaleRegression(prev, next)) {
+    return prev;
+  }
+
   if (prev && liveStateFingerprint(prev) === liveStateFingerprint(next)) {
     return prev;
   }
 
-  // Pitch-only: keep play-by-play reference stable for the feed.
   if (prev && prev.plays === next.plays) {
     const atBatPitches = mergeAtBatPitches(prev.atBatPitches, next.atBatPitches);
     return { ...next, plays: prev.plays, atBatPitches };
@@ -82,10 +86,38 @@ function applyGameState(
   return next;
 }
 
+/** Ignore out-of-order poll responses that would roll back pitch or PBP state. */
+function isStaleRegression(prev: LiveGameState, next: LiveGameState): boolean {
+  if (next.plays.length < prev.plays.length) return true;
+  if (
+    prev.batterId === next.batterId &&
+    next.atBatPitches.length < prev.atBatPitches.length
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function applyPollResult(
+  parseState: PlayByPlayParseState,
+  newPlays: AllPlayRaw[] | undefined,
+  playsFrom: number | undefined,
+  allPlaysCount: number,
+  currentPlay: AllPlayRaw | null | undefined,
+): PlayByPlayParseState {
+  let next = parseState;
+
+  if (newPlays?.length && playsFrom != null) {
+    next = appendPlayByPlay(next, newPlays, playsFrom, allPlaysCount);
+  }
+
+  return syncOngoingGameEvents(next, currentPlay, allPlaysCount);
+}
+
 /**
- * Direct MLB CDN polls with overlapping requests. Re-syncs the allPlays tail
- * every poll (using fresher currentPlay) so pitches, game events, and at-bat
- * outcomes land in play-by-play as they happen.
+ * Worker-backed MLB CDN polls. Pitch polls omit allPlays (compact postMessage);
+ * play-by-play extends only when allPlays grows. Ongoing steals/visits sync via
+ * currentPlay every poll without re-parsing the full feed on the main thread.
  */
 export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
@@ -99,23 +131,50 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     const generation = generationRef.current;
 
     try {
-      const feed = await fetchMLBLiveFeed(gamePk);
+      const playsFrom =
+        parseStateRef.current.entries.length === 0
+          ? 0
+          : null;
+
+      const result = await pollLiveFeed(gamePk, playsFrom);
       if (generation !== generationRef.current) return;
 
-      const allPlays = feed.liveData.plays.allPlays ?? [];
-      const currentPlay = feed.liveData.plays.currentPlay as AllPlayRaw | undefined;
-
-      parseStateRef.current = syncPlayByPlayFromFeed(
+      const currentPlay = result.currentPlay as AllPlayRaw | undefined;
+      parseStateRef.current = applyPollResult(
         parseStateRef.current,
-        allPlays,
+        result.newPlays as AllPlayRaw[] | undefined,
+        result.playsFrom,
+        result.allPlaysCount,
         currentPlay,
       );
 
-      if (generation !== generationRef.current) return;
+      if (
+        result.allPlaysCount > parseStateRef.current.rawPlayCount &&
+        parseStateRef.current.entries.length > 0 &&
+        result.playsFrom == null
+      ) {
+        const syncFrom = parseStateRef.current.rawPlayCount;
+        void pollLiveFeed(gamePk, syncFrom).then((sync) => {
+          if (generation !== generationRef.current) return;
 
-      const next = parseLiveFeedSnapshot(
-        gamePk,
-        feed,
+          parseStateRef.current = applyPollResult(
+            parseStateRef.current,
+            sync.newPlays as AllPlayRaw[] | undefined,
+            sync.playsFrom,
+            sync.allPlaysCount,
+            sync.currentPlay as AllPlayRaw | undefined,
+          );
+
+          const synced = parseStateFromSnapshot(
+            workerPayloadToSnapshot(sync),
+            parseStateRef.current.entries,
+          );
+          setGameState((prev) => applyGameState(prev, synced));
+        });
+      }
+
+      const next = parseStateFromSnapshot(
+        workerPayloadToSnapshot(result),
         parseStateRef.current.entries,
       );
       setGameState((prev) => applyGameState(prev, next));
