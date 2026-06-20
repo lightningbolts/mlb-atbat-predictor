@@ -67,7 +67,7 @@ export function AppNav() {
           {NAV_ITEMS.map((item) => {
             const isActive =
               item.href === "/"
-                ? pathname === "/"
+                ? pathname === "/" || pathname.startsWith("/live/")
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (

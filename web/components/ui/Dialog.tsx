@@ -52,12 +52,15 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
       onClose={handleClose}
       onClick={handleBackdropClick}
       className={cn(
-        "flex w-[min(100%,560px)] max-w-[calc(100%-2rem)] max-h-[90vh] flex-col border border-border-strong bg-panel p-0 text-foreground shadow-2xl",
+        "flex w-[min(100%,560px)] max-w-[calc(100%-2rem)] max-h-[90vh] flex-col border border-border-strong bg-panel p-0 text-foreground shadow-2xl backdrop:bg-black/60",
+        "max-md:fixed max-md:inset-0 max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:w-full max-md:max-w-none max-md:rounded-none max-md:border-0",
         className,
       )}
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-sm font-medium text-foreground">{title}</h2>
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 max-md:px-3 max-md:py-2.5">
+        <h2 className="min-w-0 pr-2 text-sm font-medium leading-snug text-foreground max-md:text-[13px]">
+          {title}
+        </h2>
         <button
           type="button"
           onClick={handleClose}
@@ -67,7 +70,9 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
           ✕
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-3 max-md:p-2.5">
+        {children}
+      </div>
     </dialog>
   );
 }

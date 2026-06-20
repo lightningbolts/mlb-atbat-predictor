@@ -138,22 +138,32 @@ function gameEventAbbrev(event: string, description: string): string {
 
 function GameEventRow({
   play,
+  awayAbbrev,
+  homeAbbrev,
   animate,
 }: {
   play: PlayByPlayEntry;
+  awayAbbrev: string;
+  homeAbbrev: string;
   animate: boolean;
 }) {
+  const showSituation = !isHalfInningStart(play.situationBefore);
+
   return (
-    <div
-      className={cn(
-        "border-t border-border/30 px-3 py-2",
-        animate && "animate-play_in",
+    <div className={cn(animate && "animate-play_in")}>
+      {showSituation && (
+        <SituationMarker
+          situation={play.situationBefore}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
       )}
-    >
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
-        <GameEventBadge event={play.event} description={play.description} />
-        <span>{play.description}</span>
-      </p>
+      <div className="border-t border-border/30 px-3 py-2">
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
+          <GameEventBadge event={play.event} description={play.description} />
+          <span>{play.description}</span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -369,22 +379,32 @@ function PlayFeedRow({
 
 function GameEventFeedRow({
   play,
+  awayAbbrev,
+  homeAbbrev,
   animate,
 }: {
   play: PlayByPlayEntry;
+  awayAbbrev: string;
+  homeAbbrev: string;
   animate: boolean;
 }) {
+  const showSituation = !isHalfInningStart(play.situationBefore);
+
   return (
-    <div
-      className={cn(
-        "border-b border-border/40 px-3 py-2",
-        animate && "animate-play_in",
+    <div className={cn(animate && "animate-play_in")}>
+      {showSituation && (
+        <SituationMarker
+          situation={play.situationBefore}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
       )}
-    >
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
-        <GameEventBadge event={play.event} description={play.description} />
-        <span>{play.description}</span>
-      </p>
+      <div className="border-b border-border/40 px-3 py-2">
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
+          <GameEventBadge event={play.event} description={play.description} />
+          <span>{play.description}</span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -505,6 +525,8 @@ function PlayFeed({
                   <GameEventFeedRow
                     key={`play-${playIndex}`}
                     play={play}
+                    awayAbbrev={awayAbbrev}
+                    homeAbbrev={homeAbbrev}
                     animate={animate}
                   />
                 );
@@ -828,6 +850,8 @@ export const PlayByPlay = memo(function PlayByPlay({
                               <GameEventRow
                                 key={`play-${playIndex}`}
                                 play={play}
+                                awayAbbrev={awayAbbrev}
+                                homeAbbrev={homeAbbrev}
                                 animate={animate}
                               />
                             );

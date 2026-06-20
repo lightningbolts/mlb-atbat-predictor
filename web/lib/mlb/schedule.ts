@@ -1,9 +1,15 @@
 import {
+  formatPitchHand,
+  formatSeasonPitcherLine,
+} from "@/lib/mlb/cardPitchers";
+import {
   LIVE_GAME_STATUSES,
   TRACKED_GAME_STATUSES,
   type ActiveGame,
+  type CardPitcher,
   type MLBScheduleGame,
   type MLBScheduleResponse,
+  type SlateGame,
 } from "@/types/mlb";
 
 const MLB_SCHEDULE_BASE = "https://statsapi.mlb.com/api/v1";
@@ -52,6 +58,104 @@ function toActiveGame(game: MLBScheduleGame): ActiveGame {
   };
 }
 
+function toSlateGame(
+  game: MLBScheduleGame,
+  pitcherStats: Map<number, PitcherSeasonSnapshot>,
+): SlateGame {
+  const base = toActiveGame(game);
+  const linescore = game.linescore;
+  const awayTeam = game.teams.away;
+  const homeTeam = game.teams.home;
+
+  return {
+    ...base,
+    awayAbbrev:
+      awayTeam.team.abbreviation ?? awayTeam.team.name.slice(0, 3).toUpperCase(),
+    homeAbbrev:
+      homeTeam.team.abbreviation ?? homeTeam.team.name.slice(0, 3).toUpperCase(),
+    awayScore: awayTeam.score ?? linescore?.teams?.away?.runs ?? null,
+    homeScore: homeTeam.score ?? linescore?.teams?.home?.runs ?? null,
+    awayHits: linescore?.teams?.away?.hits ?? null,
+    homeHits: linescore?.teams?.home?.hits ?? null,
+    awayErrors: linescore?.teams?.away?.errors ?? null,
+    homeErrors: linescore?.teams?.home?.errors ?? null,
+    currentInning: linescore?.currentInning ?? null,
+    inningHalf: linescore?.inningHalf ?? linescore?.inningState ?? null,
+    inningState: linescore?.inningState ?? null,
+    awayPitcher: probableCardPitcher(awayTeam.probablePitcher, pitcherStats),
+    homePitcher: probableCardPitcher(homeTeam.probablePitcher, pitcherStats),
+  };
+}
+
+interface PitcherSeasonSnapshot {
+  throwHand: string | null;
+  wins: number | null;
+  losses: number | null;
+  era: string | null;
+}
+
+function probableCardPitcher(
+  probable: MLBScheduleGame["teams"]["away"]["probablePitcher"],
+  stats: Map<number, PitcherSeasonSnapshot>,
+): CardPitcher | null {
+  const playerId = probable?.id;
+  const name = probable?.fullName?.trim();
+  if (!playerId || !name) return null;
+
+  const season = stats.get(playerId);
+  const throwHand =
+    formatPitchHand(probable?.pitchHand?.code) ?? season?.throwHand ?? null;
+
+  return {
+    playerId,
+    name,
+    throwHand,
+    line: formatSeasonPitcherLine(
+      season?.wins ?? null,
+      season?.losses ?? null,
+      season?.era ?? null,
+    ),
+  };
+}
+
+async function fetchPitcherSeasonStats(
+  personIds: number[],
+): Promise<Map<number, PitcherSeasonSnapshot>> {
+  const unique = [...new Set(personIds.filter((id) => id > 0))];
+  if (unique.length === 0) return new Map();
+
+  const url = new URL(`${MLB_SCHEDULE_BASE}/people`);
+  url.searchParams.set("personIds", unique.join(","));
+  url.searchParams.set("hydrate", "stats(group=pitching,type=season)");
+
+  const response = await fetch(url.toString(), { cache: "no-store" });
+  if (!response.ok) return new Map();
+
+  const data = (await response.json()) as {
+    people?: Array<{
+      id?: number;
+      pitchHand?: { code?: string };
+      stats?: Array<{
+        splits?: Array<{ stat?: { wins?: number; losses?: number; era?: string } }>;
+      }>;
+    }>;
+  };
+
+  const result = new Map<number, PitcherSeasonSnapshot>();
+  for (const person of data.people ?? []) {
+    if (!person.id) continue;
+    const stat = person.stats?.[0]?.splits?.[0]?.stat;
+    result.set(person.id, {
+      throwHand: formatPitchHand(person.pitchHand?.code),
+      wins: stat?.wins ?? null,
+      losses: stat?.losses ?? null,
+      era: stat?.era ?? null,
+    });
+  }
+
+  return result;
+}
+
 function statusRank(status: string): number {
   if (LIVE_GAME_STATUSES.has(status)) return 0;
   if (status === "Warmup" || status === "Pre-Game") return 1;
@@ -92,6 +196,7 @@ async function fetchScheduleForDate(date: string): Promise<MLBScheduleGame[]> {
   url.searchParams.set("sportId", "1");
   url.searchParams.set("date", date);
   url.searchParams.set("gameTypes", "R");
+  url.searchParams.set("hydrate", "probablePitcher,linescore,team");
 
   const response = await fetch(url.toString(), {
     cache: "no-store",
@@ -111,6 +216,12 @@ async function fetchScheduleForDate(date: string): Promise<MLBScheduleGame[]> {
  * slate after midnight Eastern, and hides Preview games far in the future.
  */
 export async function fetchActiveGames(scheduleDate?: string): Promise<ActiveGame[]> {
+  const slate = await fetchSlateGames(scheduleDate);
+  return slate;
+}
+
+/** Today's slate with linescore summary for game cards. */
+export async function fetchSlateGames(scheduleDate?: string): Promise<SlateGame[]> {
   const date = scheduleDate ?? getMLBScheduleDate();
   const prevDate = addScheduleDays(date, -1);
 
@@ -120,7 +231,6 @@ export async function fetchActiveGames(scheduleDate?: string): Promise<ActiveGam
   ]);
 
   const byPk = new Map<number, MLBScheduleGame>();
-
   const yesterdayPk = new Set<number>();
 
   for (const game of yesterdayGames) {
@@ -134,12 +244,17 @@ export async function fetchActiveGames(scheduleDate?: string): Promise<ActiveGam
     byPk.set(game.gamePk, game);
   }
 
-  return [...byPk.values()]
-    .filter((game) =>
-      isTrackedNow(game, { isTodaySlate: !yesterdayPk.has(game.gamePk) }),
-    )
-    .map(toActiveGame)
-    .sort(sortGames);
+  const tracked = [...byPk.values()].filter((game) =>
+    isTrackedNow(game, { isTodaySlate: !yesterdayPk.has(game.gamePk) }),
+  );
+
+  const probableIds = tracked.flatMap((game) => [
+    game.teams.away.probablePitcher?.id ?? 0,
+    game.teams.home.probablePitcher?.id ?? 0,
+  ]);
+  const pitcherStats = await fetchPitcherSeasonStats(probableIds);
+
+  return tracked.map((game) => toSlateGame(game, pitcherStats)).sort(sortGames);
 }
 
 /** Returns only game PKs with Live / In Progress status (for ingestor parity). */

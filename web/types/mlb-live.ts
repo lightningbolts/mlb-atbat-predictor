@@ -203,6 +203,17 @@ interface PitchEventRaw {
     type?: { code?: string; description?: string };
   };
   count?: { balls?: number; strikes?: number; outs?: number };
+  runners?: Array<{
+    movement?: {
+      originBase?: string | null;
+      start?: string | null;
+      end?: string | null;
+      outBase?: string | null;
+      isOut?: boolean;
+      outNumber?: number | null;
+    };
+    details?: { runner?: { fullName?: string } };
+  }>;
   pitchData?: {
     startSpeed?: number;
     endSpeed?: number;

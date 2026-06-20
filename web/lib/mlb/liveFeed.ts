@@ -1,5 +1,7 @@
 import { parseBoxScore } from "@/lib/mlb/boxScore";
+import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
+import type { CardPitcher } from "@/types/mlb";
 import type {
   AllPlayRaw,
   BaseOccupancy,
@@ -31,6 +33,8 @@ export interface LiveFeedSnapshot {
   linescore: MLBLiveFeedResponse["liveData"]["linescore"];
   currentPlay: MLBLiveFeedResponse["liveData"]["plays"]["currentPlay"];
   allPlaysCount: number;
+  awayPitcher: CardPitcher | null;
+  homePitcher: CardPitcher | null;
 }
 
 export interface PlayByPlayParseState {
@@ -142,21 +146,39 @@ function terminalCoveredByPlayEvents(play: AllPlayRaw): boolean {
   return false;
 }
 
+function parsePostSituationFromEvent(
+  event: PitchEventRaw,
+  play: AllPlayRaw,
+  previous: GameSituation,
+): GameSituation {
+  const bases = event.runners?.length
+    ? applyRunnerMovements(previous.bases, event.runners)
+    : previous.bases;
+  const flags = basesFlags(bases);
+
+  return {
+    awayScore:
+      event.details?.awayScore ?? play.result?.awayScore ?? previous.awayScore,
+    homeScore:
+      event.details?.homeScore ?? play.result?.homeScore ?? previous.homeScore,
+    outs: event.count?.outs ?? previous.outs,
+    bases: flags.bases,
+    onFirst: flags.onFirst,
+    onSecond: flags.onSecond,
+    onThird: flags.onThird,
+  };
+}
+
 function buildGameEventFromPlayEvent(
   event: PitchEventRaw,
   play: AllPlayRaw,
   situationBefore: GameSituation,
+  situationAfter: GameSituation,
 ): PlayByPlayEntry | null {
   if (!play.about?.inning) return null;
 
   const eventName = event.details?.event ?? event.type ?? "Game Event";
   const description = event.details?.description ?? eventName;
-  const count = event.count ?? play.count;
-  const awayScore =
-    event.details?.awayScore ?? play.result?.awayScore ?? situationBefore.awayScore;
-  const homeScore =
-    event.details?.homeScore ?? play.result?.homeScore ?? situationBefore.homeScore;
-  const outs = count?.outs ?? situationBefore.outs;
   const batterId = play.matchup?.batter?.id ?? 0;
 
   const detail: PlayDetail = {
@@ -171,8 +193,8 @@ function buildGameEventFromPlayEvent(
     description,
     inning: play.about.inning,
     halfInning: play.about.halfInning ?? "top",
-    awayScore,
-    homeScore,
+    awayScore: situationAfter.awayScore,
+    homeScore: situationAfter.homeScore,
     isScoringPlay: Boolean(event.details?.isScoringPlay),
     pitches: [],
     hit: null,
@@ -188,13 +210,13 @@ function buildGameEventFromPlayEvent(
     batterAtBats: 0,
     event: eventName,
     description,
-    awayScore,
-    homeScore,
-    outs,
-    bases: { ...situationBefore.bases },
-    onFirst: situationBefore.onFirst,
-    onSecond: situationBefore.onSecond,
-    onThird: situationBefore.onThird,
+    awayScore: situationAfter.awayScore,
+    homeScore: situationAfter.homeScore,
+    outs: situationAfter.outs,
+    bases: { ...situationAfter.bases },
+    onFirst: situationAfter.onFirst,
+    onSecond: situationAfter.onSecond,
+    onThird: situationAfter.onThird,
     situationBefore,
     isScoringPlay: detail.isScoringPlay,
     isAtBat: false,
@@ -256,34 +278,51 @@ export function dedupePlayByPlayEntries(entries: PlayByPlayEntry[]): PlayByPlayE
   return result;
 }
 
+interface GameEventExtraction {
+  entries: PlayByPlayEntry[];
+  situationAfter: GameSituation;
+}
+
 function extractGameEventsFromPlay(
   play: AllPlayRaw,
   playIndex: number,
   situationBefore: GameSituation,
   loggedKeys: Set<string>,
   existingEntries: PlayByPlayEntry[] = [],
-): PlayByPlayEntry[] {
+): GameEventExtraction {
   const entries: PlayByPlayEntry[] = [];
   const playEvents = play.playEvents ?? [];
   const atBatIndex = play.about?.atBatIndex ?? playIndex;
+  let rolling = cloneSituation(situationBefore);
 
   for (let i = 0; i < playEvents.length; i += 1) {
     const playEvent = playEvents[i];
     if (!shouldLogPlayEvent(playEvent)) continue;
 
     const key = gameEventDedupeKey(atBatIndex, playEvents, i, playEvent);
-    if (loggedKeys.has(key)) continue;
+    if (loggedKeys.has(key)) {
+      rolling = parsePostSituationFromEvent(playEvent, play, rolling);
+      continue;
+    }
 
-    const entry = buildGameEventFromPlayEvent(playEvent, play, situationBefore);
+    const eventSituationBefore = cloneSituation(rolling);
+    const eventSituationAfter = parsePostSituationFromEvent(playEvent, play, rolling);
+    const entry = buildGameEventFromPlayEvent(
+      playEvent,
+      play,
+      eventSituationBefore,
+      eventSituationAfter,
+    );
     if (!entry) continue;
     if (isDuplicateGameEventEntry(existingEntries, entry)) continue;
     if (isDuplicateGameEventEntry(entries, entry)) continue;
 
     loggedKeys.add(key);
     entries.push(entry);
+    rolling = eventSituationAfter;
   }
 
-  return entries;
+  return { entries, situationAfter: rolling };
 }
 
 function extractOngoingGameEvents(
@@ -291,11 +330,10 @@ function extractOngoingGameEvents(
   playIndex: number,
   state: PlayByPlayParseState,
 ): PlayByPlayParseState {
-  const situationBefore = cloneSituation(state.situation);
-  const gameEventEntries = extractGameEventsFromPlay(
+  const { entries: gameEventEntries, situationAfter } = extractGameEventsFromPlay(
     play,
     playIndex,
-    situationBefore,
+    state.situation,
     state.loggedGameEventKeys,
     state.entries,
   );
@@ -305,6 +343,7 @@ function extractOngoingGameEvents(
   return {
     ...state,
     entries: dedupePlayByPlayEntries([...state.entries, ...gameEventEntries]),
+    situation: situationAfter,
   };
 }
 
@@ -1013,7 +1052,7 @@ function parsePlayEntry(
   const event = resolvedPlay.result?.event ?? "";
 
   const situationBefore = cloneSituation(situation);
-  const gameEventEntries = extractGameEventsFromPlay(
+  const { entries: gameEventEntries } = extractGameEventsFromPlay(
     resolvedPlay,
     playIndex,
     situationBefore,
@@ -1353,6 +1392,11 @@ export function buildLiveFeedSnapshot(
   feed: MLBLiveFeedResponse,
 ): LiveFeedSnapshot {
   const teams = feed.gameData.teams;
+  const boxScore = parseBoxScore(gamePk, feed);
+  const pitchers = boxScore
+    ? buildCardPitchersFromBoxScore(boxScore)
+    : { away: null, home: null };
+
   return {
     gamePk,
     gameStatus: feed.gameData.status.abstractGameState,
@@ -1365,6 +1409,8 @@ export function buildLiveFeedSnapshot(
     linescore: feed.liveData.linescore,
     currentPlay: feed.liveData.plays.currentPlay,
     allPlaysCount: feed.liveData.plays.allPlays?.length ?? 0,
+    awayPitcher: pitchers.away,
+    homePitcher: pitchers.home,
   };
 }
 

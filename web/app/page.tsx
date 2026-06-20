@@ -1,17 +1,17 @@
-import { fetchActiveGames } from "@/lib/mlb/schedule";
-import { LiveDashboard } from "@/components/features/LiveDashboard";
+import { fetchSlateGames } from "@/lib/mlb/schedule";
+import { LiveGameSlate } from "@/components/features/LiveGameSlate";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  let games: Awaited<ReturnType<typeof fetchActiveGames>> = [];
+  let games: Awaited<ReturnType<typeof fetchSlateGames>> = [];
   let scheduleError: string | null = null;
 
   try {
-    games = await fetchActiveGames();
+    games = await fetchSlateGames();
   } catch (error) {
     scheduleError = error instanceof Error ? error.message : "Failed to load MLB schedule";
   }
 
-  return <LiveDashboard initialGames={games} scheduleError={scheduleError} />;
+  return <LiveGameSlate initialGames={games} scheduleError={scheduleError} />;
 }

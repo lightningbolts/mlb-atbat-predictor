@@ -203,7 +203,7 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
       title={`${play.batterName} — ${play.event} (${play.batterHits}-${play.batterAtBats})`}
       className="w-[min(100%,760px)]"
     >
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
           <span>
             {play.inning} {play.halfInning}
@@ -213,15 +213,28 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
           </span>
         </div>
 
-        <p className="text-[14px] leading-relaxed text-secondary">{play.description}</p>
+        <p className="text-[13px] leading-relaxed text-secondary md:text-[14px]">{play.description}</p>
 
         {play.pitches.length > 0 && (
-          <PitchSequence
-            pitches={play.pitches}
-            layout="split"
-            size="default"
-            contained={false}
-          />
+          <>
+            <div className="md:hidden">
+              <PitchSequence
+                pitches={play.pitches}
+                layout="zone"
+                size="compact"
+                zoneFirst
+                contained={false}
+              />
+            </div>
+            <div className="hidden md:block">
+              <PitchSequence
+                pitches={play.pitches}
+                layout="split"
+                size="default"
+                contained={false}
+              />
+            </div>
+          </>
         )}
 
         {hit && <ContactMetrics hit={hit} venueId={venueId} />}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
@@ -12,8 +13,6 @@ import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
-import { GameSidebar } from "@/components/features/GameSidebar";
-import { MobileGamePicker } from "@/components/features/MobileGamePicker";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
@@ -30,24 +29,14 @@ import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
-import { LIVE_GAME_STATUSES, type ActiveGame } from "@/types/mlb";
+import { LIVE_GAME_STATUSES, type SlateGame } from "@/types/mlb";
 
-const GAMES_REFRESH_MS = 10_000;
-
-interface LiveDashboardProps {
-  initialGames: ActiveGame[];
-  scheduleError?: string | null;
+interface LiveGameDashboardProps {
+  game: SlateGame;
 }
 
-interface DashboardContentProps {
-  games: ActiveGame[];
-  selectedGamePk: number;
-  onSelectGame: (gamePk: number) => void;
-}
-
-function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardContentProps) {
-  const selectedGame =
-    games.find((g) => g.gamePk === selectedGamePk) ?? games[0];
+function DashboardContent({ game }: { game: SlateGame }) {
+  const selectedGamePk = game.gamePk;
 
   const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
   const { boxScore, isLoading: isBoxScoreLoading } = useGameBoxScore(selectedGamePk, { poll: true });
@@ -147,12 +136,6 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
         </div>
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
-          <MobileGamePicker
-            games={games}
-            selectedGamePk={selectedGamePk}
-            onSelectGame={onSelectGame}
-          />
-
           {showSkeleton ? (
             <DashboardSkeleton />
           ) : (
@@ -160,7 +143,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
               <Panel
                 title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
                 flushMobile
-                className="order-1 shrink-0 overflow-hidden md:order-none md:min-h-[380px] md:flex-[3]"
+                className="order-1 shrink-0 overflow-hidden md:order-none md:min-h-[320px] md:flex-[3]"
               >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -241,6 +224,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                         <PitchSequence
                           pitches={atBatViewState?.atBatPitches ?? []}
                           layout="zone"
+                          size="compact"
                           zoneFirst
                           animateEntrance
                         />
@@ -276,7 +260,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                       />
                     ) : (
                       <p className="py-4 text-center text-sm text-muted">
-                        {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")
+                        {LIVE_GAME_STATUSES.has(game.status)
                           ? showBreakUI ? "Between innings" : "Waiting for at-bat…"
                           : "Available when live."}
                       </p>
@@ -309,7 +293,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                         />
                       ) : (
                         <p className="py-2 text-center text-sm text-muted">
-                          {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")
+                          {LIVE_GAME_STATUSES.has(game.status)
                             ? showBreakUI ? "Between innings" : "Waiting for at-bat…"
                             : "Available when live."}
                         </p>
@@ -368,71 +352,43 @@ function Panel({
   );
 }
 
-function NoGamesState({ scheduleError }: { scheduleError?: string | null }) {
+function NoGamesState() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <AppNav />
       <div className="flex flex-1 items-center justify-center px-6">
         <div className="max-w-sm text-center">
-          <h1 className="text-lg font-medium text-foreground">No games on the board</h1>
-          <p className="mt-2 text-sm text-muted">No live or scheduled games on today&apos;s slate.</p>
-          {scheduleError && <p className="mt-4 text-sm text-red-400/80">{scheduleError}</p>}
+          <h1 className="text-lg font-medium text-foreground">Game not found</h1>
+          <p className="mt-2 text-sm text-muted">
+            <Link href="/" className="text-secondary underline-offset-2 hover:underline">
+              Back to today&apos;s games
+            </Link>
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-export function LiveDashboard({ initialGames, scheduleError }: LiveDashboardProps) {
-  const [games, setGames] = useState(initialGames);
-  const [selectedGamePk, setSelectedGamePk] = useState<number | null>(
-    initialGames[0]?.gamePk ?? null,
-  );
-
-  const refreshGames = useCallback(async () => {
-    try {
-      const response = await fetch("/api/games", { cache: "no-store" });
-      if (!response.ok) return;
-      const data = (await response.json()) as { games: ActiveGame[] };
-      setGames(data.games);
-      setSelectedGamePk((current) => {
-        if (current && data.games.some((g) => g.gamePk === current)) return current;
-        const firstLive = data.games.find((g) => LIVE_GAME_STATUSES.has(g.status));
-        return firstLive?.gamePk ?? data.games[0]?.gamePk ?? null;
-      });
-    } catch {
-      // keep stale
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshGames();
-    const interval = setInterval(() => void refreshGames(), GAMES_REFRESH_MS);
-    return () => clearInterval(interval);
-  }, [refreshGames]);
-
-  if (games.length === 0 || selectedGamePk === null) {
-    return <NoGamesState scheduleError={scheduleError} />;
+export function LiveGameDashboard({ game }: LiveGameDashboardProps) {
+  if (!game) {
+    return <NoGamesState />;
   }
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-x-hidden bg-background text-foreground">
       <AppNav />
-      <div className="flex min-h-0 flex-1">
-        <div className="hidden h-full w-52 shrink-0 border-r border-border lg:block">
-          <GameSidebar
-            games={games}
-            selectedGamePk={selectedGamePk}
-            onSelectGame={setSelectedGamePk}
-          />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="shrink-0 border-b border-border bg-surface px-3 py-2 sm:px-4">
+          <Link
+            href="/"
+            className="text-xs text-muted transition-colors hover:text-foreground"
+          >
+            ← All games
+          </Link>
+          <p className="mt-0.5 truncate text-sm font-medium text-foreground">{game.label}</p>
         </div>
-
-        <DashboardContent
-          key={selectedGamePk}
-          games={games}
-          selectedGamePk={selectedGamePk}
-          onSelectGame={setSelectedGamePk}
-        />
+        <DashboardContent game={game} />
       </div>
     </div>
   );
