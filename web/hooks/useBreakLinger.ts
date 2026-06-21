@@ -8,7 +8,7 @@ import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import type { LiveGameState, PlayByPlayEntry, PlayPitch } from "@/types/mlb-live";
 
 export const BREAK_LINGER_MS = 2_000;
-export const AT_BAT_LINGER_MS = 2_500;
+export const AT_BAT_LINGER_MS = 0;
 /** Cap how long we wait for play-by-play to catch up before showing due-up UI. */
 const MAX_BREAK_WAIT_MS = 5_000;
 

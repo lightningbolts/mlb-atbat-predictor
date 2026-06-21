@@ -17,8 +17,8 @@ import type { AllPlayRaw, LiveGameState, PlayPitch } from "@/types/mlb-live";
 import { useRapidPoll } from "./useRapidPoll";
 
 /** Overlap direct MLB polls so pitch latency is not gated by the previous round-trip. */
-const LIVE_FEED_POLL_INTERVAL_MS = 250;
-const LIVE_FEED_MAX_IN_FLIGHT = 3;
+const LIVE_FEED_POLL_INTERVAL_MS = 100;
+const LIVE_FEED_MAX_IN_FLIGHT = 4;
 
 export interface UseLiveGameStateOptions {
   /** When false, skips polling (e.g. archived replay view). */
@@ -158,6 +158,13 @@ export function useLiveGameState(
 
       const allPlays = feed.liveData.plays.allPlays ?? [];
       const currentPlay = feed.liveData.plays.currentPlay as AllPlayRaw | undefined;
+
+      const fastNext = parseLiveFeedSnapshot(
+        gamePk,
+        feed,
+        parseStateRef.current.entries,
+      );
+      setGameState((prev) => applyGameState(prev, fastNext, catchingUp));
 
       parseStateRef.current = resyncPlayByPlayState(
         parseStateRef.current,

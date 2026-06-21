@@ -157,7 +157,7 @@ function eventRunnersForSituation(
 
   const text = `${event.details?.event ?? ""} ${event.details?.description ?? ""} ${event.type ?? ""}`.toLowerCase();
   if (
-    /stolen base|caught stealing|pickoff|wild pitch|passed ball|balk|defensive indifference|advances|scores/i.test(
+    /stolen base|\bsteals?\b|caught stealing|pickoff|wild pitch|passed ball|balk|defensive indifference|advances|scores/i.test(
       text,
     )
   ) {
@@ -245,7 +245,7 @@ function playEventAffectsSituation(
   }
 
   if (
-    /stolen base|caught stealing|wild pitch|passed ball|balk|fielding error|error on|advances to|runner scores|scores from/i.test(
+    /stolen base|\bsteals?\b|caught stealing|wild pitch|passed ball|balk|fielding error|error on|advances to|runner scores|scores from/i.test(
       text,
     )
   ) {
@@ -1413,7 +1413,12 @@ export function parseLiveFeed(
   const homeRuns = lineTeams?.home?.runs ?? 0;
 
   const inningState = linescore.inningState ?? "";
-  const isBreak = /^(middle|end)$/i.test(inningState);
+  const currentPlay = play as AllPlayRaw | undefined;
+  const currentPlayLooksActive =
+    currentPlay?.about?.isComplete !== true &&
+    !currentPlay?.result?.event &&
+    Boolean(play?.matchup?.batter?.id || play?.matchup?.batter?.fullName);
+  const isBreak = /^(middle|end)$/i.test(inningState) && !currentPlayLooksActive;
   const inning = play?.about?.inning ?? linescore.currentInning ?? 1;
   const inningHalf = isBreak
     ? inningState.toLowerCase()
