@@ -1342,6 +1342,41 @@ function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] 
   );
 }
 
+/** Prefer merged allPlays tail when it has fresher pitch events for the current AB. */
+function parseAtBatPitchesFromFeed(
+  feed: MLBLiveFeedResponse,
+  isBreak: boolean,
+): PlayPitch[] {
+  if (isBreak) return [];
+
+  const allPlays = feed.liveData.plays.allPlays ?? [];
+  const currentPlay = feed.liveData.plays.currentPlay as AllPlayRaw | undefined;
+  const fromCurrent = parsePitchesFromEvents(
+    currentPlay?.playEvents,
+    currentPlay?.result?.description,
+  );
+
+  if (allPlays.length === 0) return fromCurrent;
+
+  const merged = mergeCurrentPlayTail(allPlays, currentPlay, allPlays.length - 1);
+  const freshest = merged[merged.length - 1];
+  if (!freshest) return fromCurrent;
+
+  const currentAtBatIndex = currentPlay?.about?.atBatIndex;
+  if (
+    currentAtBatIndex != null &&
+    freshest.about?.atBatIndex === currentAtBatIndex
+  ) {
+    const fromMerged = parsePitchesFromEvents(
+      freshest.playEvents,
+      freshest.result?.description,
+    );
+    if (fromMerged.length >= fromCurrent.length) return fromMerged;
+  }
+
+  return fromCurrent;
+}
+
 export function parseLiveFeed(
   gamePk: number,
   feed: MLBLiveFeedResponse,
@@ -1403,9 +1438,7 @@ export function parseLiveFeed(
     onFirst: isBreak ? false : offense.first != null,
     onSecond: isBreak ? false : offense.second != null,
     onThird: isBreak ? false : offense.third != null,
-    atBatPitches: isBreak
-      ? []
-      : parsePitchesFromEvents(play?.playEvents, play?.result?.description),
+    atBatPitches: parseAtBatPitchesFromFeed(feed, isBreak),
     plays: plays ?? parsePlayByPlay(feed.liveData.plays.allPlays),
     observedAt: new Date().toISOString(),
   };

@@ -19,6 +19,7 @@ import { Scorebug } from "@/components/features/Scorebug";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useGamePredictions } from "@/hooks/useGamePredictions";
+import { useLiveGameState } from "@/hooks/useLiveGameState";
 import { useGameState } from "@/hooks/useGameState";
 import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
@@ -78,14 +79,32 @@ function Panel({
 
 export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDashboardProps) {
   const isLive = isLiveStatus(game.status);
-  const { gameState, isLoading, error, source, feedSyncedAt } = useGameState(game.game_pk, {
-    poll: isLive,
+  const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
+
+  const {
+    gameState: liveGameState,
+    isLoading: liveLoading,
+    error: liveError,
+  } = useLiveGameState(game.game_pk, {
+    enabled: isLive,
+    pollBurstKey: activeTab,
   });
+  const {
+    gameState: archivedGameState,
+    isLoading: archivedLoading,
+    error: archivedError,
+    source,
+    feedSyncedAt,
+  } = useGameState(game.game_pk, { enabled: !isLive });
+  const gameState = isLive ? liveGameState : archivedGameState;
+  const isLoading = isLive ? liveLoading : archivedLoading;
+  const error = isLive ? liveError : archivedError;
+
   const {
     boxScore,
     isLoading: isBoxScoreLoading,
     error: boxScoreError,
-  } = useGameBoxScore(game.game_pk, { poll: isLive });
+  } = useGameBoxScore(game.game_pk, { poll: isLive, pollBurstKey: activeTab });
 
   const { showBreakUI } = useBreakLinger(isLive ? gameState : null);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } = useLiveGameOverlays(
@@ -95,7 +114,6 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   );
   useArchiveFinishedGame(game.game_pk, isLive && gameOver);
 
-  const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
 
   const atBatPlays = useMemo(
@@ -215,7 +233,13 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
         <div className="flex min-h-0 flex-1 flex-col">
           <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-          {activeTab === "box" ? (
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col overflow-hidden",
+              activeTab !== "box" && "hidden",
+            )}
+            aria-hidden={activeTab !== "box"}
+          >
             <BoxScoreView
               boxScore={boxScore}
               isLoading={isBoxScoreLoading}
@@ -224,7 +248,15 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
               offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
             />
-          ) : activeTab === "spray" ? (
+          </div>
+
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col overflow-hidden",
+              activeTab !== "spray" && "hidden",
+            )}
+            aria-hidden={activeTab !== "spray"}
+          >
             <GameHitsView
               plays={gameState?.plays ?? []}
               venueId={gameState?.venueId ?? game.venue_id}
@@ -233,7 +265,16 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               homeAbbrev={gameState?.homeAbbrev ?? game.home_team_abbrev}
               isLoading={isLoading && !gameState}
             />
-          ) : !gameState ? (
+          </div>
+
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col overflow-hidden",
+              activeTab !== "plays" && "hidden",
+            )}
+            aria-hidden={activeTab !== "plays"}
+          >
+          {!gameState ? (
             <div className="flex flex-1 items-center justify-center px-6 text-center">
               <div>
                 <p className="text-sm text-secondary">No play-by-play data for this game.</p>
@@ -377,6 +418,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
           </div>
             </>
           )}
+          </div>
         </div>
       )}
 

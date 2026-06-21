@@ -20,10 +20,18 @@ import { useChainedPoll } from "./useChainedPoll";
 const LIVE_FEED_MIN_GAP_VISIBLE_MS = 100;
 const LIVE_FEED_MIN_GAP_HIDDEN_MS = 1_000;
 
+export interface UseLiveGameStateOptions {
+  /** When false, skips polling (e.g. archived replay view). */
+  enabled?: boolean;
+  /** Change to trigger an immediate MLB feed fetch (e.g. dashboard tab switch). */
+  pollBurstKey?: unknown;
+}
+
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
   isLoading: boolean;
   error: string | null;
+  refreshNow: () => Promise<void>;
 }
 
 function pitchEqual(a: PlayPitch, b: PlayPitch): boolean {
@@ -125,7 +133,12 @@ function resyncPlayByPlayState(
  * Direct MLB CDN polls. Re-syncs the allPlays tail each poll (merging fresher
  * currentPlay) so pitches, game events, and at-bat outcomes land as they happen.
  */
-export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
+export function useLiveGameState(
+  gamePk: number,
+  options?: UseLiveGameStateOptions,
+): UseLiveGameStateResult {
+  const enabled = options?.enabled ?? true;
+  const pollBurstKey = options?.pollBurstKey;
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -202,13 +215,18 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
+  useEffect(() => {
+    if (!enabled || pollBurstKey === undefined) return;
+    void fetchState();
+  }, [enabled, pollBurstKey, fetchState]);
+
   useChainedPoll(
     fetchState,
     LIVE_FEED_MIN_GAP_VISIBLE_MS,
     LIVE_FEED_MIN_GAP_HIDDEN_MS,
-    Boolean(gamePk),
+    enabled && Boolean(gamePk),
     gamePk,
   );
 
-  return { gameState, isLoading, error };
+  return { gameState, isLoading, error, refreshNow: fetchState };
 }

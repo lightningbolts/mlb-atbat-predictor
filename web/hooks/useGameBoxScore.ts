@@ -4,7 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 
-const LIVE_POLL_MS = 3_000;
+import { useChainedPoll } from "./useChainedPoll";
+
+const LIVE_POLL_VISIBLE_MS = 100;
+const LIVE_POLL_HIDDEN_MS = 1_000;
+
+export interface UseGameBoxScoreOptions {
+  poll?: boolean;
+  /** Change to trigger an immediate box score fetch (e.g. dashboard tab switch). */
+  pollBurstKey?: unknown;
+}
 
 export interface UseGameBoxScoreResult {
   boxScore: GameBoxScore | null;
@@ -17,7 +26,7 @@ export interface UseGameBoxScoreResult {
 
 export function useGameBoxScore(
   gamePk: number,
-  options?: { poll?: boolean },
+  options?: UseGameBoxScoreOptions,
 ): UseGameBoxScoreResult {
   const [boxScore, setBoxScore] = useState<GameBoxScore | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +35,7 @@ export function useGameBoxScore(
   const [feedSyncedAt, setFeedSyncedAt] = useState<string | null>(null);
 
   const shouldPoll = options?.poll ?? false;
+  const pollBurstKey = options?.pollBurstKey;
 
   const fetchBoxScore = useCallback(async () => {
     try {
@@ -68,15 +78,20 @@ export function useGameBoxScore(
     setFeedSyncedAt(null);
 
     void fetchBoxScore();
+  }, [gamePk, fetchBoxScore]);
 
-    if (!shouldPoll) return;
+  useEffect(() => {
+    if (!shouldPoll || pollBurstKey === undefined) return;
+    void fetchBoxScore();
+  }, [shouldPoll, pollBurstKey, fetchBoxScore]);
 
-    const pollId = window.setInterval(() => {
-      void fetchBoxScore();
-    }, LIVE_POLL_MS);
-
-    return () => window.clearInterval(pollId);
-  }, [gamePk, fetchBoxScore, shouldPoll]);
+  useChainedPoll(
+    fetchBoxScore,
+    LIVE_POLL_VISIBLE_MS,
+    LIVE_POLL_HIDDEN_MS,
+    shouldPoll && Boolean(gamePk),
+    gamePk,
+  );
 
   return {
     boxScore,

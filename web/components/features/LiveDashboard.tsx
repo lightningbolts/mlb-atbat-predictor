@@ -37,9 +37,15 @@ interface LiveGameDashboardProps {
 
 function DashboardContent({ game }: { game: SlateGame }) {
   const selectedGamePk = game.gamePk;
+  const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
 
-  const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
-  const { boxScore, isLoading: isBoxScoreLoading } = useGameBoxScore(selectedGamePk, { poll: true });
+  const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk, {
+    pollBurstKey: activeTab,
+  });
+  const { boxScore, isLoading: isBoxScoreLoading } = useGameBoxScore(selectedGamePk, {
+    poll: true,
+    pollBurstKey: activeTab,
+  });
   const { atBatViewState, showBreakUI, isLingering } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } =
     useLiveGameOverlays(gameState, boxScore, showBreakUI);
@@ -54,8 +60,6 @@ function DashboardContent({ game }: { game: SlateGame }) {
     });
 
   const { probabilities, matchedPrediction } = useOutcomeOdds(atBatViewState, predictions);
-
-  const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
 
   const onFirst = matchedPrediction?.on_first ?? gameState?.onFirst ?? false;
   const onSecond = matchedPrediction?.on_second ?? gameState?.onSecond ?? false;
@@ -93,31 +97,48 @@ function DashboardContent({ game }: { game: SlateGame }) {
       <ConnectionIndicator status={connectionStatus} error={error} />
       <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {activeTab === "box" ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <BoxScoreView
-            boxScore={boxScore}
-            isLoading={isBoxScoreLoading}
-            atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
-            onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
-            offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
-            className="min-h-0 flex-1"
-          />
-        </div>
-      ) : activeTab === "spray" ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <GameHitsView
-            plays={gameState?.plays ?? []}
-            venueId={gameState?.venueId}
-            venueName={gameState?.venueName}
-            awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
-            homeAbbrev={gameState?.homeAbbrev ?? "HME"}
-            isLoading={isFeedLoading && !gameState}
-            className="min-h-0 flex-1"
-          />
-        </div>
-      ) : (
-        <>
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          activeTab !== "box" && "hidden",
+        )}
+        aria-hidden={activeTab !== "box"}
+      >
+        <BoxScoreView
+          boxScore={boxScore}
+          isLoading={isBoxScoreLoading}
+          atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
+          onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
+          offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
+          className="min-h-0 flex-1"
+        />
+      </div>
+
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          activeTab !== "spray" && "hidden",
+        )}
+        aria-hidden={activeTab !== "spray"}
+      >
+        <GameHitsView
+          plays={gameState?.plays ?? []}
+          venueId={gameState?.venueId}
+          venueName={gameState?.venueName}
+          awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
+          homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+          isLoading={isFeedLoading && !gameState}
+          className="min-h-0 flex-1"
+        />
+      </div>
+
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          activeTab !== "plays" && "hidden",
+        )}
+        aria-hidden={activeTab !== "plays"}
+      >
       <Scorebug
         className="shrink-0"
         gameState={
@@ -328,8 +349,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
           )}
         </main>
       </div>
-        </>
-      )}
+      </div>
 
       <DueUpDialog context={dueUp} open={showDueUp} onClose={dismissDueUp} />
       <GameFinalDialog

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
+import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import type { LiveGameState, PlayByPlayEntry, PlayPitch } from "@/types/mlb-live";
 
 export const BREAK_LINGER_MS = 2_000;
@@ -24,6 +25,74 @@ function mergeLingerPitches(
   return play.length >= active.length ? play : active;
 }
 
+function findLastAtBatForBatter(
+  plays: PlayByPlayEntry[],
+  batterId: number | null | undefined,
+): PlayByPlayEntry | undefined {
+  if (batterId == null) return undefined;
+
+  for (let i = plays.length - 1; i >= 0; i -= 1) {
+    const play = plays[i];
+    if (isPlayByPlayAtBat(play) && play.batterId === batterId) {
+      return play;
+    }
+  }
+
+  return undefined;
+}
+
+function applyCompletedPlayMeta(
+  base: LiveGameState,
+  completedPlay: PlayByPlayEntry,
+  pitches: PlayPitch[],
+): LiveGameState {
+  const lastPitch = pitches.at(-1);
+  return {
+    ...base,
+    batterId: completedPlay.batterId,
+    batterName: completedPlay.batterName,
+    pitcherId: completedPlay.detail.pitcherId,
+    pitcherName: completedPlay.detail.pitcherName,
+    inning: completedPlay.inning,
+    inningHalf: completedPlay.halfInning,
+    balls: lastPitch?.balls ?? base.balls,
+    strikes: lastPitch?.strikes ?? base.strikes,
+    outs: completedPlay.outs,
+    onFirst: completedPlay.onFirst,
+    onSecond: completedPlay.onSecond,
+    onThird: completedPlay.onThird,
+    awayRuns: completedPlay.awayScore,
+    homeRuns: completedPlay.homeScore,
+    atBatPitches: pitches,
+  };
+}
+
+/** Hold the finished AB through batter changes — merge terminal pitch from PBP when live tail jumped. */
+function buildAtBatLingerSnapshot(
+  lastActive: LiveGameState,
+  gameState: LiveGameState,
+): LiveGameState {
+  const completedPlay = findLastAtBatForBatter(gameState.plays, lastActive.batterId);
+  const pitches = mergeLingerPitches(lastActive, completedPlay);
+  if (pitches.length === 0) return lastActive;
+
+  const lastPitch = pitches.at(-1);
+  const usePlayMeta =
+    completedPlay != null &&
+    completedPlay.detail.pitches.length >= lastActive.atBatPitches.length;
+
+  if (usePlayMeta && completedPlay) {
+    return applyCompletedPlayMeta(lastActive, completedPlay, pitches);
+  }
+
+  return {
+    ...lastActive,
+    balls: lastPitch?.balls ?? lastActive.balls,
+    strikes: lastPitch?.strikes ?? lastActive.strikes,
+    atBatPitches: pitches,
+  };
+}
+
 /** Reconstruct the just-finished at-bat when the feed jumps straight to a break. */
 function buildLingerState(
   gameState: LiveGameState,
@@ -39,23 +108,8 @@ function buildLingerState(
   if (usePlayMeta && lastPlay) {
     const base = lastActive ?? gameState;
     return {
-      ...base,
-      batterId: lastPlay.batterId,
-      batterName: lastPlay.batterName,
-      pitcherId: lastPlay.detail.pitcherId,
-      pitcherName: lastPlay.detail.pitcherName,
-      inning: lastPlay.inning,
-      inningHalf: lastPlay.halfInning,
+      ...applyCompletedPlayMeta(base, lastPlay, pitches),
       inningState: lastPlay.halfInning,
-      balls: lastPitch?.balls ?? 0,
-      strikes: lastPitch?.strikes ?? 0,
-      outs: lastPlay.outs,
-      onFirst: lastPlay.onFirst,
-      onSecond: lastPlay.onSecond,
-      onThird: lastPlay.onThird,
-      awayRuns: lastPlay.awayScore,
-      homeRuns: lastPlay.homeScore,
-      atBatPitches: pitches,
     };
   }
 
@@ -70,6 +124,41 @@ function buildLingerState(
   }
 
   return null;
+}
+
+function refreshAtBatLinger(
+  linger: { snapshot: LiveGameState; until: number },
+  gameState: LiveGameState,
+): { snapshot: LiveGameState; until: number; pitchCount: number } {
+  const prevCount = linger.snapshot.atBatPitches.length;
+  const completedPlay = findLastAtBatForBatter(gameState.plays, linger.snapshot.batterId);
+  const pitches = mergeLingerPitches(linger.snapshot, completedPlay);
+  const pitchCount = pitches.length;
+
+  if (pitchCount === prevCount) {
+    return { ...linger, pitchCount };
+  }
+
+  const lastPitch = pitches.at(-1);
+  const usePlayMeta =
+    completedPlay != null &&
+    completedPlay.detail.pitches.length >= prevCount;
+
+  const snapshot =
+    usePlayMeta && completedPlay
+      ? applyCompletedPlayMeta(linger.snapshot, completedPlay, pitches)
+      : {
+          ...linger.snapshot,
+          balls: lastPitch?.balls ?? linger.snapshot.balls,
+          strikes: lastPitch?.strikes ?? linger.snapshot.strikes,
+          atBatPitches: pitches,
+        };
+
+  return {
+    snapshot,
+    pitchCount,
+    until: Date.now() + AT_BAT_LINGER_MS,
+  };
 }
 
 export interface BreakLingerResult {
@@ -94,18 +183,22 @@ export function useBreakLinger(gameState: LiveGameState | null): BreakLingerResu
 
   if (gameState && !isBreak) {
     const prev = lastActiveRef.current;
+    const completedPlay =
+      prev != null ? findLastAtBatForBatter(gameState.plays, prev.batterId) : undefined;
     const batterChanged =
       prev != null &&
       prev.batterId != null &&
       gameState.batterId != null &&
       gameState.batterId !== prev.batterId &&
-      prev.atBatPitches.length > 0;
+      (prev.atBatPitches.length > 0 || (completedPlay?.detail.pitches.length ?? 0) > 0);
 
     if (batterChanged) {
       atBatLingerRef.current = {
-        snapshot: prev,
+        snapshot: buildAtBatLingerSnapshot(prev, gameState),
         until: Date.now() + AT_BAT_LINGER_MS,
       };
+    } else if (atBatLingerRef.current && Date.now() < atBatLingerRef.current.until) {
+      atBatLingerRef.current = refreshAtBatLinger(atBatLingerRef.current, gameState);
     }
 
     lastActiveRef.current = gameState;

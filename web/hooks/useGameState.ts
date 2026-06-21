@@ -15,14 +15,18 @@ export interface UseGameStateResult {
   refetch: () => Promise<void>;
 }
 
-export function useGameState(gamePk: number, options?: { poll?: boolean }): UseGameStateResult {
+export function useGameState(
+  gamePk: number,
+  options?: { poll?: boolean; enabled?: boolean },
+): UseGameStateResult {
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<"supabase" | "mlb" | null>(null);
   const [feedSyncedAt, setFeedSyncedAt] = useState<string | null>(null);
 
-  const shouldPoll = options?.poll ?? false;
+  const enabled = options?.enabled ?? true;
+  const shouldPoll = (options?.poll ?? false) && enabled;
 
   const fetchState = useCallback(async () => {
     try {
@@ -50,7 +54,7 @@ export function useGameState(gamePk: number, options?: { poll?: boolean }): UseG
   }, [gamePk]);
 
   useEffect(() => {
-    if (!gamePk) {
+    if (!gamePk || !enabled) {
       setIsLoading(false);
       return;
     }
@@ -70,7 +74,7 @@ export function useGameState(gamePk: number, options?: { poll?: boolean }): UseG
     }, LIVE_POLL_MS);
 
     return () => window.clearInterval(pollId);
-  }, [gamePk, fetchState, shouldPoll]);
+  }, [gamePk, fetchState, shouldPoll, enabled]);
 
   return {
     gameState,
