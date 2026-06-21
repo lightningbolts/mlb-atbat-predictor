@@ -12,9 +12,8 @@ import {
   formatGameScore,
   formatOuts,
   formatRunnerBases,
-  isHalfInningStart,
 } from "@/lib/mlb/situationFormat";
-import type { GameSituation, PlayByPlayEntry, PlayDetail, PlayPitch } from "@/types/mlb-live";
+import type { BaseOccupancy, GameSituation, PlayByPlayEntry, PlayDetail, PlayPitch } from "@/types/mlb-live";
 import { formatInningHalf } from "@/lib/utils";
 
 interface PlayByPlayProps {
@@ -137,6 +136,43 @@ function gameEventAbbrev(event: string, description: string): string {
   return eventAbbrev(event);
 }
 
+function basesEqual(a: BaseOccupancy, b: BaseOccupancy): boolean {
+  return a.first === b.first && a.second === b.second && a.third === b.third;
+}
+
+function situationsEqual(a: GameSituation, b: GameSituation): boolean {
+  return (
+    a.awayScore === b.awayScore &&
+    a.homeScore === b.homeScore &&
+    a.outs === b.outs &&
+    a.onFirst === b.onFirst &&
+    a.onSecond === b.onSecond &&
+    a.onThird === b.onThird &&
+    basesEqual(a.bases, b.bases)
+  );
+}
+
+/** True when a feed row should show the post-play situation marker. */
+function entryShowsSituationAfter(entry: PlayByPlayEntry): boolean {
+  if (entry.isAtBat === false) {
+    return gameEventShowsSituation(entry);
+  }
+
+  return !situationsEqual(entry.situationBefore, entrySituationAfter(entry));
+}
+
+function entrySituationAfter(play: PlayByPlayEntry): GameSituation {
+  return {
+    awayScore: play.awayScore,
+    homeScore: play.homeScore,
+    outs: play.outs,
+    bases: play.bases,
+    onFirst: play.onFirst,
+    onSecond: play.onSecond,
+    onThird: play.onThird,
+  };
+}
+
 function GameEventRow({
   play,
   awayAbbrev,
@@ -148,40 +184,25 @@ function GameEventRow({
   homeAbbrev: string;
   animate: boolean;
 }) {
-  const showSituation = gameEventShowsSituation(play);
-  const situation = gameEventSituation(play);
+  const showSituationAfter = entryShowsSituationAfter(play);
 
   return (
     <div className={cn(animate && "animate-play_in")}>
-      {showSituation && (
-        <SituationMarker
-          situation={situation}
-          awayAbbrev={awayAbbrev}
-          homeAbbrev={homeAbbrev}
-        />
-      )}
       <div className="border-t border-border/30 px-3 py-2">
         <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
           <GameEventBadge event={play.event} description={play.description} />
           <span>{play.description}</span>
         </p>
       </div>
+      {showSituationAfter && (
+        <SituationMarker
+          situation={entrySituationAfter(play)}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
+      )}
     </div>
   );
-}
-
-function gameEventSituation(play: PlayByPlayEntry): GameSituation {
-  if (play.isAtBat !== false) return play.situationBefore;
-
-  return {
-    awayScore: play.awayScore,
-    homeScore: play.homeScore,
-    outs: play.outs,
-    bases: play.bases,
-    onFirst: play.onFirst,
-    onSecond: play.onSecond,
-    onThird: play.onThird,
-  };
 }
 
 function SituationMarker({
@@ -348,18 +369,11 @@ function PlayFeedRow({
   embeddedPitches?: PlayPitch[];
   pitchEntranceFromIndex?: number;
 }) {
-  const showSituation = !isHalfInningStart(play.situationBefore);
+  const showSituationAfter = entryShowsSituationAfter(play);
   const selected = selectedAtBatIndex === play.atBatIndex;
 
   return (
     <div className={cn(animate && "animate-play_in")}>
-      {showSituation && (
-        <SituationMarker
-          situation={play.situationBefore}
-          awayAbbrev={awayAbbrev}
-          homeAbbrev={homeAbbrev}
-        />
-      )}
       {embeddedPitches && embeddedPitches.length > 0 && (
         <PitchFeedList
           pitches={embeddedPitches}
@@ -389,6 +403,13 @@ function PlayFeedRow({
           {formatBatterLine(play.batterHits, play.batterAtBats)}
         </span>
       </button>
+      {showSituationAfter && (
+        <SituationMarker
+          situation={entrySituationAfter(play)}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
+      )}
     </div>
   );
 }
@@ -404,24 +425,23 @@ function GameEventFeedRow({
   homeAbbrev: string;
   animate: boolean;
 }) {
-  const showSituation = gameEventShowsSituation(play);
-  const situation = gameEventSituation(play);
+  const showSituationAfter = entryShowsSituationAfter(play);
 
   return (
     <div className={cn(animate && "animate-play_in")}>
-      {showSituation && (
-        <SituationMarker
-          situation={situation}
-          awayAbbrev={awayAbbrev}
-          homeAbbrev={homeAbbrev}
-        />
-      )}
       <div className="border-b border-border/40 px-3 py-2">
         <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-snug text-muted">
           <GameEventBadge event={play.event} description={play.description} />
           <span>{play.description}</span>
         </p>
       </div>
+      {showSituationAfter && (
+        <SituationMarker
+          situation={entrySituationAfter(play)}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
+      )}
     </div>
   );
 }
@@ -620,18 +640,11 @@ function PlayOutcomeCard({
   setSelectedPlay: (play: PlayDetail | null) => void;
   animate: boolean;
 }) {
-  const showSituation = !isHalfInningStart(play.situationBefore);
+  const showSituationAfter = entryShowsSituationAfter(play);
   const contact = compactContactLine(play.detail.hit);
 
   return (
     <div className={cn(animate && "animate-play_in")}>
-      {showSituation && (
-        <SituationMarker
-          situation={play.situationBefore}
-          awayAbbrev={awayAbbrev}
-          homeAbbrev={homeAbbrev}
-        />
-      )}
       <button
         type="button"
         onClick={() => {
@@ -661,6 +674,13 @@ function PlayOutcomeCard({
           <p className="mt-1 font-mono text-[11px] text-subtle">{contact}</p>
         )}
       </button>
+      {showSituationAfter && (
+        <SituationMarker
+          situation={entrySituationAfter(play)}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
+      )}
     </div>
   );
 }

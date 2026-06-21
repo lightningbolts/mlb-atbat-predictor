@@ -1264,16 +1264,13 @@ function parsePlayEntry(
   const event = resolvedPlay.result?.event ?? "";
 
   const situationAtPlayStart = cloneSituation(situation);
-  const { entries: gameEventEntries, situationAfter: afterGameEvents } =
-    extractGameEventsFromPlay(
-      resolvedPlay,
-      playIndex,
-      situationAtPlayStart,
-      state.loggedGameEventKeys,
-      state.entries,
-    );
-  const feedSituationBefore =
-    gameEventEntries.length > 0 ? afterGameEvents : situationAtPlayStart;
+  const { entries: gameEventEntries } = extractGameEventsFromPlay(
+    resolvedPlay,
+    playIndex,
+    situationAtPlayStart,
+    state.loggedGameEventKeys,
+    state.entries,
+  );
   const postSituation = parsePostSituation(resolvedPlay, situationAtPlayStart);
   situation = postSituation;
 
@@ -1352,7 +1349,7 @@ function parsePlayEntry(
     onFirst: postSituation.onFirst,
     onSecond: postSituation.onSecond,
     onThird: postSituation.onThird,
-    situationBefore,
+    situationBefore: situationAtPlayStart,
     isScoringPlay: detail.isScoringPlay,
     isAtBat,
     detail,
