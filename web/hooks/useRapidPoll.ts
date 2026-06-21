@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 
 /**
  * Fixed-interval polling that overlaps requests (up to `maxInFlight`) so pitch
- * latency is not gated on the previous round-trip finishing.
+ * latency is not gated on the previous round-trip finishing. Hidden tabs may
+ * throttle timers, so focus/visibility events trigger an immediate catch-up.
  */
 export function useRapidPoll(
   poll: () => Promise<void>,
@@ -14,7 +15,10 @@ export function useRapidPoll(
   resetKey: unknown,
 ): void {
   const pollRef = useRef(poll);
-  pollRef.current = poll;
+
+  useEffect(() => {
+    pollRef.current = poll;
+  }, [poll]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -37,10 +41,21 @@ export function useRapidPoll(
 
     tick();
     const intervalId = window.setInterval(tick, intervalMs);
+    const catchUp = () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      tick();
+    };
+
+    document.addEventListener("visibilitychange", catchUp);
+    window.addEventListener("focus", catchUp);
+    window.addEventListener("pageshow", catchUp);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", catchUp);
+      window.removeEventListener("focus", catchUp);
+      window.removeEventListener("pageshow", catchUp);
     };
   }, [enabled, intervalMs, maxInFlight, resetKey]);
 }
