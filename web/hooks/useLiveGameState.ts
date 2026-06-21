@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  appendPlayByPlay,
   createPlayByPlayParseState,
-  dedupePlayByPlayEntries,
   fetchMLBLiveFeed,
   liveStateFingerprint,
-  mergeCurrentPlayTail,
   parseLiveFeedSnapshot,
+  playByPlayNeedsResync,
+  rebuildPlayByPlayFromFeed,
   syncPlayByPlayFromFeed,
   type PlayByPlayParseState,
 } from "@/lib/mlb/liveFeed";
@@ -17,8 +16,9 @@ import type { AllPlayRaw, LiveGameState, PlayPitch } from "@/types/mlb-live";
 
 import { useChainedPoll } from "./useChainedPoll";
 
-/** Chained polls — one in-flight fetch, next starts ~100ms after the prior finishes. */
-const LIVE_FEED_MIN_GAP_MS = 100;
+/** Active tab: ~100ms between polls (~1s end-to-end with fetch). Hidden tabs use slower gap. */
+const LIVE_FEED_MIN_GAP_VISIBLE_MS = 100;
+const LIVE_FEED_MIN_GAP_HIDDEN_MS = 1_000;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
@@ -80,7 +80,11 @@ function applyGameState(
     return prev;
   }
 
-  if (prev && prev.plays === next.plays) {
+  if (
+    prev &&
+    prev.plays === next.plays &&
+    prev.batterId === next.batterId
+  ) {
     const atBatPitches = mergeAtBatPitches(prev.atBatPitches, next.atBatPitches);
     return { ...next, plays: prev.plays, atBatPitches };
   }
@@ -99,31 +103,22 @@ function isStaleRegression(prev: LiveGameState, next: LiveGameState): boolean {
   return false;
 }
 
-/** Rebuild play-by-play when the tab was backgrounded and we fell behind allPlays. */
 function resyncPlayByPlayState(
   state: PlayByPlayParseState,
   allPlays: AllPlayRaw[],
   currentPlay: AllPlayRaw | undefined,
+  forceRebuild: boolean,
 ): PlayByPlayParseState {
   if (allPlays.length === 0) return state;
 
-  const behind = state.rawPlayCount < allPlays.length - 1;
-  if (!behind) {
-    return syncPlayByPlayFromFeed(state, allPlays, currentPlay);
+  if (
+    forceRebuild ||
+    playByPlayNeedsResync(state, allPlays, currentPlay)
+  ) {
+    return rebuildPlayByPlayFromFeed(allPlays, currentPlay);
   }
 
-  const merged = mergeCurrentPlayTail(allPlays, currentPlay, 0);
-  const rebuilt = appendPlayByPlay(
-    createPlayByPlayParseState(),
-    merged,
-    0,
-    allPlays.length,
-  );
-
-  return {
-    ...rebuilt,
-    entries: dedupePlayByPlayEntries(rebuilt.entries),
-  };
+  return syncPlayByPlayFromFeed(state, allPlays, currentPlay);
 }
 
 /**
@@ -141,8 +136,8 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
-    const forceUpdate = tabWasHiddenRef.current && document.visibilityState === "visible";
-    if (forceUpdate) tabWasHiddenRef.current = false;
+    const catchingUp =
+      tabWasHiddenRef.current && document.visibilityState === "visible";
 
     try {
       const feed = await fetchMLBLiveFeed(gamePk);
@@ -155,7 +150,14 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
         parseStateRef.current,
         allPlays,
         currentPlay,
+        catchingUp,
       );
+
+      if (
+        !playByPlayNeedsResync(parseStateRef.current, allPlays, currentPlay)
+      ) {
+        tabWasHiddenRef.current = false;
+      }
 
       if (generation !== generationRef.current) return;
 
@@ -164,7 +166,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
         feed,
         parseStateRef.current.entries,
       );
-      setGameState((prev) => applyGameState(prev, next, forceUpdate));
+      setGameState((prev) => applyGameState(prev, next, catchingUp));
       setError(null);
     } catch (err) {
       if (generation !== generationRef.current) return;
@@ -200,7 +202,13 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  useChainedPoll(fetchState, LIVE_FEED_MIN_GAP_MS, Boolean(gamePk), gamePk);
+  useChainedPoll(
+    fetchState,
+    LIVE_FEED_MIN_GAP_VISIBLE_MS,
+    LIVE_FEED_MIN_GAP_HIDDEN_MS,
+    Boolean(gamePk),
+    gamePk,
+  );
 
   return { gameState, isLoading, error };
 }

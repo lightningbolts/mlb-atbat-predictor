@@ -40,7 +40,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
 
   const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
   const { boxScore, isLoading: isBoxScoreLoading } = useGameBoxScore(selectedGamePk, { poll: true });
-  const { atBatViewState, showBreakUI } = useBreakLinger(gameState);
+  const { atBatViewState, showBreakUI, isLingering } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } =
     useLiveGameOverlays(gameState, boxScore, showBreakUI);
   useArchiveFinishedGame(selectedGamePk, gameOver);
@@ -80,7 +80,8 @@ function DashboardContent({ game }: { game: SlateGame }) {
   const atBatInProgress =
     gameState?.gameStatus === "Live" &&
     !showBreakUI &&
-    (atBatViewState?.atBatPitches.length ?? 0) > 0;
+    !isLingering &&
+    gameState.atBatPitches.length > 0;
 
   const lastCompletedAtBatIndex = useMemo(() => {
     const atBats = gameState?.plays.filter(isPlayByPlayAtBat) ?? [];
@@ -188,7 +189,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           batterName={atBatViewState.batterName}
                           stats={rispStats}
                           isLoading={isRispLoading}
-                          className="mx-3 mb-2 hidden md:mx-0 md:block"
+                          className="mx-3 mb-2 md:mx-0"
                         />
                       )}
                     </>
@@ -297,10 +298,14 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     variant="feed"
                     className="min-h-0 flex-1"
                     autoScrollToLatest
-                    livePitches={atBatInProgress ? atBatViewState?.atBatPitches : undefined}
-                    animateLivePitches={atBatInProgress}
+                    livePitches={
+                      atBatInProgress || isLingering
+                        ? atBatViewState?.atBatPitches
+                        : undefined
+                    }
+                    animateLivePitches={atBatInProgress || isLingering}
                     embedPitchesAtBatIndex={
-                      atBatInProgress ? null : lastCompletedAtBatIndex
+                      atBatInProgress || isLingering ? null : lastCompletedAtBatIndex
                     }
                     feedHeader={
                       atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (

@@ -191,7 +191,13 @@ export function useLivePredictions(
     };
   }, [gamePk, applyPrediction, fetchRecent]);
 
-  useChainedPoll(fetchRecent, PREDICTION_POLL_MS, Boolean(gamePk), gamePk);
+  useChainedPoll(
+    fetchRecent,
+    PREDICTION_POLL_MS,
+    PREDICTION_POLL_MS * 4,
+    Boolean(gamePk),
+    gamePk,
+  );
 
   return {
     predictions,

@@ -576,6 +576,61 @@ export function syncPlayByPlayFromFeed(
   };
 }
 
+/** Full rebuild from allPlays + currentPlay (used after background tab catch-up). */
+export function rebuildPlayByPlayFromFeed(
+  allPlays: AllPlayRaw[],
+  currentPlay: AllPlayRaw | null | undefined,
+): PlayByPlayParseState {
+  if (allPlays.length === 0) return createPlayByPlayParseState();
+
+  const merged = mergeCurrentPlayTail(allPlays, currentPlay, 0);
+  const rebuilt = appendPlayByPlay(
+    createPlayByPlayParseState(),
+    merged,
+    0,
+    allPlays.length,
+  );
+
+  return {
+    ...rebuilt,
+    entries: dedupePlayByPlayEntries(rebuilt.entries),
+  };
+}
+
+function countExpectedLoggedAtBats(
+  allPlays: AllPlayRaw[],
+  currentPlay: AllPlayRaw | null | undefined,
+): number {
+  const merged = mergeCurrentPlayTail(allPlays, currentPlay, 0);
+  let count = 0;
+
+  for (let i = 0; i < merged.length; i += 1) {
+    const play = resolvePlayResult(merged[i]!);
+    const isOngoing = i === merged.length - 1;
+    const event = play.result?.event?.trim() ?? "";
+
+    if (!event) continue;
+    if (isOngoing && !isPlayFinalized(play)) continue;
+    if (isPlateAppearanceEvent(event)) count += 1;
+  }
+
+  return count;
+}
+
+/** True when incremental parse state is missing finalized plate appearances. */
+export function playByPlayNeedsResync(
+  state: PlayByPlayParseState,
+  allPlays: AllPlayRaw[],
+  currentPlay: AllPlayRaw | null | undefined,
+): boolean {
+  if (allPlays.length === 0) return false;
+  if (state.rawPlayCount < allPlays.length - 1) return true;
+
+  const expected = countExpectedLoggedAtBats(allPlays, currentPlay);
+  const logged = state.entries.filter((entry) => entry.isAtBat !== false).length;
+  return logged < expected;
+}
+
 /** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
 function isPlayFinalized(play: AllPlayRaw): boolean {
   const resolved = resolvePlayResult(play);

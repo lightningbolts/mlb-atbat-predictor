@@ -2,7 +2,11 @@
 
 import Image from "next/image";
 
-import { HittingLineSummary } from "@/components/features/HittingStatPills";
+import {
+  HittingLineSummary,
+  HittingStatPills,
+  StatBlockSkeleton,
+} from "@/components/features/HittingStatPills";
 import {
   findBatterBoxLine,
   findPitcherBoxLine,
@@ -133,22 +137,22 @@ export function AtBatMatchup({
       </div>
 
       {isMatchupLoading ? (
-        <p className="mt-1.5 text-[10px] text-muted md:mt-2 md:text-[11px]">
-          Loading matchup…
-        </p>
+        <StatBlockSkeleton className="mt-2 border-0 bg-transparent p-0" />
       ) : matchupRecord ? (
-        <>
-          <p className="mt-1.5 truncate text-[10px] text-muted md:hidden">
-            vs {pitcherLast}: {matchupRecord.hits}-{matchupRecord.atBats}, {matchupRecord.avg} AVG
-          </p>
-          <div className="mt-2 hidden border-t border-border/50 pt-2 md:block">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">
-              Career vs {pitcherLast}
-            </p>
-            <HittingLineSummary line={matchupRecord} className="mt-0.5 block" />
+        <div className="mt-2 border-t border-border/50 pt-2">
+          <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-subtle">
+              Lifetime vs {pitcherLast}
+            </span>
+            <HittingLineSummary line={matchupRecord} />
           </div>
-        </>
-      ) : null}
+          <HittingStatPills line={matchupRecord} />
+        </div>
+      ) : (
+        <p className="mt-1.5 text-[10px] text-muted md:mt-2 md:text-[11px]">
+          No MLB history vs {pitcherLast}
+        </p>
+      )}
     </div>
   );
 }

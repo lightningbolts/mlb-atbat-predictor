@@ -3,13 +3,14 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Runs `poll` in a loop with at least `minGapMs` between the start of each attempt.
- * The next cycle begins as soon as the previous fetch finishes (no fixed interval tail).
- * On tab focus / visibility resume, polls immediately to catch up missed at-bats.
+ * Runs `poll` in a loop with at least `minGapVisibleMs` / `minGapHiddenMs` between
+ * the start of each attempt. On tab focus / visibility resume, polls immediately
+ * and keeps chaining until the queue drains so missed at-bats land quickly.
  */
 export function useChainedPoll(
   poll: () => Promise<void>,
-  minGapMs: number,
+  minGapVisibleMs: number,
+  minGapHiddenMs: number,
   enabled: boolean,
   resetKey: unknown,
 ): void {
@@ -23,6 +24,9 @@ export function useChainedPoll(
     let timeoutId = 0;
     let running = false;
     let pendingCatchUp = false;
+
+    const minGap = () =>
+      document.visibilityState === "hidden" ? minGapHiddenMs : minGapVisibleMs;
 
     const run = async () => {
       if (cancelled) return;
@@ -51,13 +55,14 @@ export function useChainedPoll(
       }
 
       const elapsed = performance.now() - started;
-      const delay = Math.max(0, minGapMs - elapsed);
+      const delay = Math.max(0, minGap() - elapsed);
       timeoutId = window.setTimeout(() => void run(), delay);
     };
 
     const catchUp = () => {
       if (cancelled || document.visibilityState === "hidden") return;
       window.clearTimeout(timeoutId);
+      pendingCatchUp = true;
       void run();
     };
 
@@ -73,5 +78,5 @@ export function useChainedPoll(
       window.removeEventListener("focus", catchUp);
       window.removeEventListener("pageshow", catchUp);
     };
-  }, [enabled, minGapMs, resetKey]);
+  }, [enabled, minGapVisibleMs, minGapHiddenMs, resetKey]);
 }
