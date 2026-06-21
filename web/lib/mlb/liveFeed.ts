@@ -146,13 +146,35 @@ function terminalCoveredByPlayEvents(play: AllPlayRaw): boolean {
   return false;
 }
 
+function eventRunnersForSituation(
+  event: PitchEventRaw,
+  play: AllPlayRaw,
+): AllPlayRaw["runners"] {
+  if (event.runners?.length) return event.runners;
+
+  const resultEvent = play.result?.event?.trim() ?? "";
+  if (!resultEvent || isPlateAppearanceEvent(resultEvent)) return undefined;
+
+  const text = `${event.details?.event ?? ""} ${event.details?.description ?? ""} ${event.type ?? ""}`.toLowerCase();
+  if (
+    /stolen base|caught stealing|pickoff|wild pitch|passed ball|balk|defensive indifference|advances|scores/i.test(
+      text,
+    )
+  ) {
+    return play.runners;
+  }
+
+  return undefined;
+}
+
 function parsePostSituationFromEvent(
   event: PitchEventRaw,
   play: AllPlayRaw,
   previous: GameSituation,
 ): GameSituation {
-  const bases = event.runners?.length
-    ? applyRunnerMovements(previous.bases, event.runners)
+  const runners = eventRunnersForSituation(event, play);
+  const bases = runners?.length
+    ? applyRunnerMovements(previous.bases, runners)
     : previous.bases;
   const flags = basesFlags(bases);
 

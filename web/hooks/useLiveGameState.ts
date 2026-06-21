@@ -14,11 +14,11 @@ import {
 } from "@/lib/mlb/liveFeed";
 import type { AllPlayRaw, LiveGameState, PlayPitch } from "@/types/mlb-live";
 
-import { useChainedPoll } from "./useChainedPoll";
+import { useRapidPoll } from "./useRapidPoll";
 
-/** Active tab: ~100ms between polls (~1s end-to-end with fetch). Hidden tabs use slower gap. */
-const LIVE_FEED_MIN_GAP_VISIBLE_MS = 100;
-const LIVE_FEED_MIN_GAP_HIDDEN_MS = 1_000;
+/** Overlap direct MLB polls so pitch latency is not gated by the previous round-trip. */
+const LIVE_FEED_POLL_INTERVAL_MS = 250;
+const LIVE_FEED_MAX_IN_FLIGHT = 3;
 
 export interface UseLiveGameStateOptions {
   /** When false, skips polling (e.g. archived replay view). */
@@ -220,10 +220,10 @@ export function useLiveGameState(
     void fetchState();
   }, [enabled, pollBurstKey, fetchState]);
 
-  useChainedPoll(
+  useRapidPoll(
     fetchState,
-    LIVE_FEED_MIN_GAP_VISIBLE_MS,
-    LIVE_FEED_MIN_GAP_HIDDEN_MS,
+    LIVE_FEED_POLL_INTERVAL_MS,
+    LIVE_FEED_MAX_IN_FLIGHT,
     enabled && Boolean(gamePk),
     gamePk,
   );

@@ -149,12 +149,13 @@ function GameEventRow({
   animate: boolean;
 }) {
   const showSituation = gameEventShowsSituation(play);
+  const situation = gameEventSituation(play);
 
   return (
     <div className={cn(animate && "animate-play_in")}>
       {showSituation && (
         <SituationMarker
-          situation={play.situationBefore}
+          situation={situation}
           awayAbbrev={awayAbbrev}
           homeAbbrev={homeAbbrev}
         />
@@ -167,6 +168,20 @@ function GameEventRow({
       </div>
     </div>
   );
+}
+
+function gameEventSituation(play: PlayByPlayEntry): GameSituation {
+  if (play.isAtBat !== false) return play.situationBefore;
+
+  return {
+    awayScore: play.awayScore,
+    homeScore: play.homeScore,
+    outs: play.outs,
+    bases: play.bases,
+    onFirst: play.onFirst,
+    onSecond: play.onSecond,
+    onThird: play.onThird,
+  };
 }
 
 function SituationMarker({
@@ -390,12 +405,13 @@ function GameEventFeedRow({
   animate: boolean;
 }) {
   const showSituation = gameEventShowsSituation(play);
+  const situation = gameEventSituation(play);
 
   return (
     <div className={cn(animate && "animate-play_in")}>
       {showSituation && (
         <SituationMarker
-          situation={play.situationBefore}
+          situation={situation}
           awayAbbrev={awayAbbrev}
           homeAbbrev={homeAbbrev}
         />
