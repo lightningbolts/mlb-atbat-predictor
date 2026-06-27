@@ -202,4 +202,84 @@ describe("liveFeed parser golden fixtures", () => {
     expect(stealLate?.onThird).toBe(true);
     expect(stealLate?.bases.third).toBe("Cedric Mullins");
   });
+
+  it("tracks bases through walks, GDP, and a scoring single", () => {
+    const walk1 = loadFixture("leadoff-walk.json");
+    const walk2 = loadFixture("walk-with-runner-on-first.json");
+    const gdp = loadFixture("gdp-runners-on-first-second.json");
+    const single = loadFixture("scoring-single-from-second.json");
+
+    walk1.about = { ...walk1.about!, inning: 3, halfInning: "top" };
+    walk2.about = { ...walk2.about!, inning: 3, halfInning: "top" };
+    gdp.about = { ...gdp.about!, inning: 3, halfInning: "top" };
+    single.about = { ...single.about!, inning: 3, halfInning: "top" };
+
+    const rebuilt = rebuildPlayByPlayFromFeed([walk1, walk2, gdp, single], single);
+    const atBats = rebuilt.entries.filter((entry) => entry.isAtBat !== false);
+
+    expect(atBats).toHaveLength(4);
+
+    const afterWalk2 = atBats[1];
+    expect(afterWalk2?.bases.first).toBe("Dominic Canzone");
+    expect(afterWalk2?.bases.second).toBe("Cal Raleigh");
+    expect(afterWalk2?.outs).toBe(0);
+
+    const afterGdp = atBats[2];
+    expect(afterGdp?.event).toBe("Grounded Into DP");
+    expect(afterGdp?.outs).toBe(2);
+    expect(afterGdp?.onFirst).toBe(false);
+    expect(afterGdp?.bases.second).toBe("Cal Raleigh");
+    expect(afterGdp?.bases.first).toBeUndefined();
+
+    const afterSingle = atBats[3];
+    expect(afterSingle?.event).toBe("Single");
+    expect(afterSingle?.awayScore).toBe(2);
+    expect(afterSingle?.homeScore).toBe(1);
+    expect(afterSingle?.bases.first).toBe("J.P. Crawford");
+    expect(afterSingle?.onSecond).toBe(false);
+    expect(afterSingle?.bases.second).toBeUndefined();
+  });
+
+  it("clears a scoring runner when MLB start base does not match occupied base", () => {
+    const priorSingle = loadScenario("completed-ab-with-next-current.json").completedAb;
+    priorSingle.matchup!.batter!.fullName = "Jake Burger";
+    priorSingle.runners = [
+      {
+        movement: { originBase: null, start: null, end: "2B", isOut: false },
+        details: { runner: { fullName: "Jake Burger" } },
+      },
+    ];
+
+    const scoringDouble: AllPlayRaw = {
+      about: { atBatIndex: 5, inning: 4, halfInning: "top", isComplete: true, isScoringPlay: true },
+      matchup: {
+        batter: { id: 6, fullName: "Kyle Higashioka" },
+        pitcher: { id: 401, fullName: "Pitcher" },
+      },
+      result: {
+        event: "Double",
+        description: "Kyle Higashioka doubles. Jake Burger scores.",
+        awayScore: 2,
+        homeScore: 0,
+      },
+      runners: [
+        {
+          movement: { originBase: "2B", start: "3B", end: "score", isOut: false },
+          details: { runner: { fullName: "Jake Burger" } },
+        },
+        {
+          movement: { originBase: null, start: null, end: "2B", isOut: false },
+          details: { runner: { fullName: "Kyle Higashioka" } },
+        },
+      ],
+      count: { balls: 0, strikes: 0, outs: 0 },
+    };
+
+    const rebuilt = rebuildPlayByPlayFromFeed([priorSingle, scoringDouble], scoringDouble);
+    const scoringPlay = rebuilt.entries.find((entry) => entry.event === "Double");
+
+    expect(scoringPlay?.bases.second).toBe("Kyle Higashioka");
+    expect(scoringPlay?.onFirst).toBe(false);
+    expect(scoringPlay?.bases.first).toBeUndefined();
+  });
 });

@@ -898,6 +898,10 @@ function clearRunnerFromBases(bases: BaseOccupancy, name: string): void {
   if (bases.third === name) delete bases.third;
 }
 
+function runnerScored(end: string | null): boolean {
+  return end === "score" || end === "Home";
+}
+
 /** Apply runner movements from one play onto the previous base state. */
 function applyRunnerMovements(
   previousBases: BaseOccupancy,
@@ -913,17 +917,20 @@ function applyRunnerMovements(
     const start = movement?.start ?? movement?.originBase ?? null;
     const end = movement?.end ?? null;
     const isOut = movement?.isOut ?? false;
+    const scored = runnerScored(end);
 
     // Vacate the origin base only when this runner is the one occupying it.
+    // Avoids clearing another runner when MLB lists movements out of order.
     if (start === "1B" && bases.first === name) delete bases.first;
     if (start === "2B" && bases.second === name) delete bases.second;
     if (start === "3B" && bases.third === name) delete bases.third;
 
-    if (!start && (isOut || !end || end === "score")) {
+    if (isOut || scored || !end) {
       clearRunnerFromBases(bases, name);
+      continue;
     }
 
-    if (!isOut && end && BASE_CODES.has(end)) {
+    if (BASE_CODES.has(end)) {
       // Same play can list Home→1B then 1B→2B for the batter; apply each leg immediately.
       clearRunnerFromBases(bases, name);
       if (end === "1B") bases.first = name;
@@ -977,7 +984,7 @@ function cloneSituation(situation: GameSituation): GameSituation {
   };
 }
 
-/** Prefer play-level runner resolution, but keep mid-PA game-event base updates when present. */
+/** Prefer play-level runner resolution; game events only fill in outs/score when ahead. */
 function mergeSituations(primary: GameSituation, fromGameEvents: GameSituation): GameSituation {
   const basesChanged =
     !basesEqual(primary.bases, fromGameEvents.bases) ||
@@ -989,10 +996,6 @@ function mergeSituations(primary: GameSituation, fromGameEvents: GameSituation):
 
   return {
     ...primary,
-    bases: { ...fromGameEvents.bases },
-    onFirst: fromGameEvents.onFirst,
-    onSecond: fromGameEvents.onSecond,
-    onThird: fromGameEvents.onThird,
     outs: Math.max(primary.outs, fromGameEvents.outs),
     awayScore: Math.max(primary.awayScore, fromGameEvents.awayScore),
     homeScore: Math.max(primary.homeScore, fromGameEvents.homeScore),

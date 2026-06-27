@@ -1,0 +1,26 @@
+{
+  "about": {
+    "atBatIndex": 9,
+    "inning": 3,
+    "halfInning": "top",
+    "isComplete": true
+  },
+  "matchup": {
+    "batter": { "id": 1, "fullName": "Cal Raleigh" },
+    "pitcher": { "id": 401, "fullName": "Tim Herrin" }
+  },
+  "result": {
+    "event": "Walk",
+    "description": "Cal Raleigh walks.",
+    "awayScore": 1,
+    "homeScore": 1
+  },
+  "playEvents": [],
+  "runners": [
+    {
+      "movement": { "originBase": null, "start": null, "end": "1B", "isOut": false },
+      "details": { "runner": { "fullName": "Cal Raleigh" } }
+    }
+  ],
+  "count": { "balls": 4, "strikes": 2, "outs": 0 }
+}

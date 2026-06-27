@@ -1,0 +1,31 @@
+{
+  "about": {
+    "atBatIndex": 12,
+    "inning": 3,
+    "halfInning": "top",
+    "isComplete": true,
+    "isScoringPlay": true
+  },
+  "matchup": {
+    "batter": { "id": 4, "fullName": "J.P. Crawford" },
+    "pitcher": { "id": 401, "fullName": "Tim Herrin" }
+  },
+  "result": {
+    "event": "Single",
+    "description": "J.P. Crawford singles on a ground ball to second baseman Travis Bazzana. Cal Raleigh scores.",
+    "awayScore": 2,
+    "homeScore": 1
+  },
+  "playEvents": [],
+  "runners": [
+    {
+      "movement": { "originBase": "2B", "start": "2B", "end": "score", "isOut": false },
+      "details": { "runner": { "fullName": "Cal Raleigh" } }
+    },
+    {
+      "movement": { "originBase": null, "start": null, "end": "1B", "isOut": false },
+      "details": { "runner": { "fullName": "J.P. Crawford" } }
+    }
+  ],
+  "count": { "balls": 1, "strikes": 3, "outs": 2 }
+}

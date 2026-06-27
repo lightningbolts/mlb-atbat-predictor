@@ -1,0 +1,44 @@
+{
+  "about": {
+    "atBatIndex": 11,
+    "inning": 3,
+    "halfInning": "top",
+    "isComplete": true
+  },
+  "matchup": {
+    "batter": { "id": 3, "fullName": "Josh Naylor" },
+    "pitcher": { "id": 401, "fullName": "Tim Herrin" }
+  },
+  "result": {
+    "event": "Grounded Into DP",
+    "description": "Josh Naylor grounds into a double play, shortstop Brayan Rocchio to first baseman Kyle Manzardo.",
+    "awayScore": 1,
+    "homeScore": 1
+  },
+  "playEvents": [],
+  "runners": [
+    {
+      "movement": {
+        "originBase": "1B",
+        "start": "1B",
+        "end": null,
+        "outBase": "2B",
+        "isOut": true,
+        "outNumber": 1
+      },
+      "details": { "runner": { "fullName": "Dominic Canzone" } }
+    },
+    {
+      "movement": {
+        "originBase": null,
+        "start": null,
+        "end": null,
+        "outBase": "1B",
+        "isOut": true,
+        "outNumber": 2
+      },
+      "details": { "runner": { "fullName": "Josh Naylor" } }
+    }
+  ],
+  "count": { "balls": 0, "strikes": 3, "outs": 2 }
+}
