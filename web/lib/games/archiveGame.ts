@@ -4,6 +4,7 @@ import { fetchScheduleGameByPk, type GameScheduleRow } from "@/lib/games/schedul
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
 import { extractVenueHitsFromFeed } from "@/lib/mlb/ballparkHitsAggregate";
 import { appendGameHitsToStore } from "@/lib/mlb/ballparkHitsStore";
+import { appendGameNerdStatsToStore } from "@/lib/mlb/nerdStats/store";
 import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { parseLiveFeed, wrapMlbFeedForStorage } from "@/lib/mlb/liveFeed";
 import { clearLiveFeedCache, getCachedLiveFeed } from "@/lib/mlb/liveFeedServer";
@@ -107,6 +108,25 @@ async function persistArchivedGame(
     appendGameHitsToStore(row.season, row, hits);
   } catch (err) {
     console.warn(`append ballpark hits ${row.game_pk} failed:`, err);
+  }
+
+  try {
+    appendGameNerdStatsToStore(row.season, {
+      game_pk: row.game_pk,
+      game_date: row.game_date,
+      season: row.season,
+      away_team_id: row.away_team_id,
+      home_team_id: row.home_team_id,
+      away_team_abbrev: row.away_team_abbrev,
+      home_team_abbrev: row.home_team_abbrev,
+      away_score: row.away_score,
+      home_score: row.home_score,
+      game_state: wrapMlbFeedForStorage(feed),
+      box_score: boxScore,
+      feed_synced_at: syncedAt,
+    });
+  } catch (err) {
+    console.warn(`append nerd stats ${row.game_pk} failed:`, err);
   }
 
   return syncedAt;

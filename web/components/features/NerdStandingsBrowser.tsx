@@ -1,0 +1,176 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+
+import { AppNav } from "@/components/features/AppNav";
+import { NerdStatCard } from "@/components/features/NerdStatCard";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useNerdStatsSummary } from "@/hooks/useNerdStats";
+import { NERD_STAT_CATEGORIES, type NerdStatCategory } from "@/lib/mlb/nerdStats/types";
+import { MLB_TEAMS } from "@/lib/mlb/teams";
+import { cn } from "@/lib/utils";
+
+const CURRENT_SEASON = new Date().getFullYear();
+
+export function NerdStandingsBrowser() {
+  const { data, isLoading, error } = useNerdStatsSummary(CURRENT_SEASON);
+  const [category, setCategory] = useState<NerdStatCategory | "all">("all");
+  const [search, setSearch] = useState("");
+  const [teamId, setTeamId] = useState<number | null>(null);
+
+  const filteredStats = useMemo(() => {
+    if (!data?.stats) return [];
+    const query = search.trim().toLowerCase();
+    return data.stats.filter((stat) => {
+      if (category !== "all" && stat.category !== category) return false;
+      if (!query) return true;
+      return (
+        stat.title.toLowerCase().includes(query) ||
+        stat.subtitle.toLowerCase().includes(query) ||
+        stat.id.includes(query)
+      );
+    });
+  }, [category, data?.stats, search]);
+
+  const statOfTheDay = data?.stats.find((stat) => stat.id === data.statOfTheDayId);
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <AppNav />
+
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-medium text-foreground">Nerd Standings</h1>
+          <p className="mt-1 text-sm text-muted">
+            Obscure team stats for the {CURRENT_SEASON} season. Not W–L. Not WAR. Better.
+          </p>
+          {!isLoading && data && (
+            <p className="mt-2 text-xs text-subtle">
+              {data.indexedGameCount.toLocaleString()} final game
+              {data.indexedGameCount === 1 ? "" : "s"} indexed
+              {data.backfillPending && (
+                <span className="text-muted"> · Run aggregate-nerd-stats to populate</span>
+              )}
+            </p>
+          )}
+        </div>
+
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-1.5">
+            <CategoryChip
+              active={category === "all"}
+              onClick={() => setCategory("all")}
+              label="All"
+            />
+            {NERD_STAT_CATEGORIES.map((item) => (
+              <CategoryChip
+                key={item.id}
+                active={category === item.id}
+                onClick={() => setCategory(item.id)}
+                label={item.label}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search stats…"
+              className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground placeholder:text-subtle sm:w-48"
+            />
+            <select
+              value={teamId ?? ""}
+              onChange={(event) =>
+                setTeamId(event.target.value ? Number.parseInt(event.target.value, 10) : null)
+              }
+              className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="">Team nerd card</option>
+              {MLB_TEAMS.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.abbrev}
+                </option>
+              ))}
+            </select>
+            {teamId != null && (
+              <Link
+                href={`/nerd/team/${teamId}`}
+                className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-xs text-foreground hover:bg-hover"
+              >
+                View card
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 9 }).map((_, index) => (
+              <Skeleton key={index} className="h-56 rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredStats.map((stat) => (
+              <NerdStatCard
+                key={stat.id}
+                stat={stat}
+                season={CURRENT_SEASON}
+                highlighted={stat.id === data?.statOfTheDayId}
+              />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && filteredStats.length === 0 && (
+          <div className="rounded-xl border border-border bg-surface px-6 py-12 text-center text-sm text-muted">
+            No stats match your filters.
+          </div>
+        )}
+
+        {!isLoading && statOfTheDay && (
+          <p className="mt-6 text-center text-xs text-subtle">
+            Stat of the day:{" "}
+            <Link href={`/nerd/${statOfTheDay.id}`} className="text-secondary hover:underline">
+              {statOfTheDay.title}
+            </Link>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CategoryChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full px-3 py-1 text-xs transition-colors",
+        active
+          ? "bg-surface-elevated text-foreground"
+          : "text-muted hover:bg-hover hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
+  );
+}

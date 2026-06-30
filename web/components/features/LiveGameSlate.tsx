@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { LiveGameCard } from "@/components/features/LiveGameCard";
+import { StatOfTheDayBanner } from "@/components/features/StatOfTheDayBanner";
 import { getBrowserTimeZone } from "@/lib/mlb/schedule";
 import type { SlateGame } from "@/types/mlb";
 
@@ -60,6 +61,7 @@ export function LiveGameSlate({ initialGames, scheduleError }: LiveGameSlateProp
               Click a game for play-by-play and predictions. Hover for the box score.
             </p>
           </div>
+          <StatOfTheDayBanner />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {games.map((game) => (
               <LiveGameCard key={game.gamePk} game={game} />

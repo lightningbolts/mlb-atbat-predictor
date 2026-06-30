@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { resolveBallparkVenueId } from "@/lib/mlb/ballparkPaths";
 import {
   buildBallparkHitsAggregate,
   buildBallparkHitsDetail,
@@ -129,7 +130,7 @@ export function saveBallparkHitsBundle(
 /** Append hits from one archived game into on-disk season aggregates. */
 export function appendGameHitsToStore(
   season: number,
-  row: Pick<GameHitsSourceRow, "game_pk" | "game_date" | "venue_id" | "away_team_abbrev" | "home_team_abbrev">,
+  row: Pick<GameHitsSourceRow, "game_pk" | "game_date" | "venue_id" | "home_team_id" | "away_team_abbrev" | "home_team_abbrev">,
   hits: VenueHit[],
 ): void {
   ensureSeasonDir(season);
@@ -141,18 +142,19 @@ export function appendGameHitsToStore(
 
   const hitsByVenue = loadAllVenueHits(season);
   const gamesByVenue = gamesByVenueFromManifest(manifest);
+  const venueId = resolveBallparkVenueId(row.venue_id, row.home_team_id);
 
-  if (row.venue_id != null) {
-    const gameSet = gamesByVenue.get(row.venue_id) ?? new Set<number>();
+  if (venueId != null) {
+    const gameSet = gamesByVenue.get(venueId) ?? new Set<number>();
     gameSet.add(row.game_pk);
-    gamesByVenue.set(row.venue_id, gameSet);
+    gamesByVenue.set(venueId, gameSet);
 
     if (hits.length > 0) {
-      const merged = mergeVenueHits(hitsByVenue.get(row.venue_id) ?? [], hits);
-      hitsByVenue.set(row.venue_id, merged);
+      const merged = mergeVenueHits(hitsByVenue.get(venueId) ?? [], hits);
+      hitsByVenue.set(venueId, merged);
       writeJson(
-        venuePath(season, row.venue_id),
-        buildBallparkHitsDetail(season, row.venue_id, merged),
+        venuePath(season, venueId),
+        buildBallparkHitsDetail(season, venueId, merged),
       );
     }
   }

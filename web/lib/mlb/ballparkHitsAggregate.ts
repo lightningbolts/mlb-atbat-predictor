@@ -1,5 +1,5 @@
 import { parseStoredGameState } from "@/lib/games/gameState";
-import { ballparkIndex } from "@/lib/mlb/ballparkPaths";
+import { ballparkIndex, resolveBallparkVenueId } from "@/lib/mlb/ballparkPaths";
 import {
   computeGameHitStats,
   extractGameHits,
@@ -21,6 +21,7 @@ export interface GameHitsSourceRow {
   game_date: string;
   season: number;
   venue_id: number | null;
+  home_team_id?: number | null;
   away_team_abbrev: string;
   home_team_abbrev: string;
   game_state: unknown;
@@ -66,25 +67,29 @@ function toSprayPreview(hit: VenueHit): SprayPreviewHit {
 }
 
 export function extractVenueHitsFromStoredGame(row: GameHitsSourceRow): VenueHit[] {
-  if (row.venue_id == null) return [];
+  const venueId = resolveBallparkVenueId(row.venue_id, row.home_team_id);
+  if (venueId == null) return [];
 
   const state = parseStoredGameState(row.game_state, row.game_pk);
   if (!state?.plays?.length) return [];
 
-  return extractGameHits(state.plays).map((hit) => toVenueHit(row, hit));
+  const resolvedRow = { ...row, venue_id: venueId };
+  return extractGameHits(state.plays).map((hit) => toVenueHit(resolvedRow, hit));
 }
 
 export function extractVenueHitsFromFeed(
   row: Pick<
     GameHitsSourceRow,
-    "game_pk" | "game_date" | "venue_id" | "away_team_abbrev" | "home_team_abbrev"
+    "game_pk" | "game_date" | "venue_id" | "home_team_id" | "away_team_abbrev" | "home_team_abbrev"
   >,
   feed: MLBLiveFeedResponse,
 ): VenueHit[] {
-  if (row.venue_id == null) return [];
+  const venueId = resolveBallparkVenueId(row.venue_id, row.home_team_id);
+  if (venueId == null) return [];
 
   const state = parseLiveFeed(row.game_pk, feed);
-  return extractGameHits(state.plays).map((hit) => toVenueHit(row, hit));
+  const resolvedRow = { ...row, venue_id: venueId };
+  return extractGameHits(state.plays).map((hit) => toVenueHit(resolvedRow, hit));
 }
 
 export function buildBallparkHitsAggregate(

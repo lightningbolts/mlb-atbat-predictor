@@ -20,6 +20,17 @@ export function getBallparkByVenueId(venueId: number | null | undefined): Ballpa
   return index.parks[String(venueId)] ?? null;
 }
 
+/** Map legacy MLB venue IDs to canonical ballpark index entries. */
+export function resolveBallparkVenueId(
+  venueId: number | null | undefined,
+  homeTeamId?: number | null,
+): number | null {
+  if (venueId == null) return null;
+  // Rays home games still report Tropicana Field (12) while the index uses Steinbrenner (2523).
+  if (venueId === 12 && homeTeamId === 139) return 2523;
+  return venueId;
+}
+
 /** Segments drawn back-to-front for the spray chart field background. */
 export const FIELD_SEGMENT_ORDER = [
   "outfield_outer",

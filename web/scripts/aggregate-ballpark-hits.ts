@@ -15,6 +15,7 @@ import {
   extractVenueHitsFromStoredGame,
   type GameHitsSourceRow,
 } from "../lib/mlb/ballparkHitsAggregate";
+import { resolveBallparkVenueId } from "../lib/mlb/ballparkPaths";
 import { writeFullBallparkHitsStore } from "../lib/mlb/ballparkHitsStore";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -48,7 +49,7 @@ const { resolveDbCredentials } = require(join(REPO_ROOT, "scripts/lib/db.mjs")) 
 
 const PAGE_SIZE = 20;
 const GAME_COLUMNS =
-  "game_pk,game_date,season,venue_id,away_team_abbrev,home_team_abbrev,game_state" as const;
+  "game_pk,game_date,season,venue_id,home_team_id,away_team_abbrev,home_team_abbrev,game_state" as const;
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -101,7 +102,7 @@ async function fetchGamesViaPostgres(season: number, databaseUrl: string): Promi
 
   try {
     const { rows } = await pool.query(
-      `SELECT game_pk, game_date, season, venue_id, away_team_abbrev, home_team_abbrev, game_state
+      `SELECT game_pk, game_date, season, venue_id, home_team_id, away_team_abbrev, home_team_abbrev, game_state
        FROM games
        WHERE season = $1 AND feed_synced_at IS NOT NULL AND venue_id IS NOT NULL
        ORDER BY game_pk`,
@@ -132,7 +133,11 @@ async function main() {
   for (const game of games) {
     const hits = extractVenueHitsFromStoredGame(game);
     hitCount += hits.length;
-    gameRows.push({ gamePk: game.game_pk, venueId: game.venue_id, hits });
+    gameRows.push({
+      gamePk: game.game_pk,
+      venueId: resolveBallparkVenueId(game.venue_id, game.home_team_id),
+      hits,
+    });
 
     if (gameRows.length % 25 === 0) {
       process.stdout.write(`\rProcessed ${gameRows.length}/${games.length} games, ${hitCount} hits…`);
