@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/", label: "Live" },
   { href: "/games", label: "Season History" },
+  { href: "/ballparks", label: "Ballpark Hits" },
 ] as const;
 
 function ThemeToggle() {

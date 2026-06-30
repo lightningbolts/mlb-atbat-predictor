@@ -1,6 +1,7 @@
 "use client";
 
 import type { GameBoxScore } from "@/types/mlb-boxscore";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 
 interface CompactLineScoreProps {
   boxScore: GameBoxScore;
@@ -36,7 +37,12 @@ export function CompactLineScore({ boxScore, className }: CompactLineScoreProps)
         </thead>
         <tbody>
           <tr className="border-t border-border/60">
-            <td className="px-1.5 py-1 font-semibold text-foreground">{awayAbbrev}</td>
+            <td className="px-1.5 py-1">
+              <div className="flex items-center gap-1.5">
+                <TeamLogo abbrev={awayAbbrev} size={16} />
+                <span className="font-semibold text-foreground">{awayAbbrev}</span>
+              </div>
+            </td>
             {lineScore.innings.map((inning) => (
               <td key={`away-${inning.num}`} className="px-1 py-1 text-center tabular-nums">
                 {formatInningRuns(inning.awayRuns)}
@@ -49,7 +55,12 @@ export function CompactLineScore({ boxScore, className }: CompactLineScoreProps)
             <td className="px-1.5 py-1 text-center tabular-nums">{lineScore.away.errors}</td>
           </tr>
           <tr className="border-t border-border/60">
-            <td className="px-1.5 py-1 font-semibold text-foreground">{homeAbbrev}</td>
+            <td className="px-1.5 py-1">
+              <div className="flex items-center gap-1.5">
+                <TeamLogo abbrev={homeAbbrev} size={16} />
+                <span className="font-semibold text-foreground">{homeAbbrev}</span>
+              </div>
+            </td>
             {lineScore.innings.map((inning) => (
               <td key={`home-${inning.num}`} className="px-1 py-1 text-center tabular-nums">
                 {formatInningRuns(inning.homeRuns, inning.homeSkipped)}

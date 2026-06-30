@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useGamesByDate, useGamesByTeam } from "@/hooks/useGames";
 import {
@@ -52,7 +53,12 @@ function GameRow({ game, historyContext }: GameRowProps) {
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-medium text-foreground">{formatMatchup(game)}</h3>
+          <div className="flex items-center gap-1.5">
+            <TeamLogo abbrev={game.away_team_abbrev} size={20} />
+            <span className="text-xs text-muted">@</span>
+            <TeamLogo abbrev={game.home_team_abbrev} size={20} />
+            <h3 className="text-sm font-medium text-foreground">{formatMatchup(game)}</h3>
+          </div>
           {live && (
             <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400">
               Live
@@ -193,7 +199,14 @@ export function GameHistoryBrowser({
       return formatGameDate(selectedDate);
     }
     const team = MLB_TEAMS.find((entry) => entry.id === selectedTeamId);
-    return team ? `${team.name} (${team.abbrev})` : "Select a team";
+    return team ? (
+      <span className="inline-flex items-center gap-2">
+        <TeamLogo teamId={team.id} size={20} />
+        {team.name} ({team.abbrev})
+      </span>
+    ) : (
+      "Select a team"
+    );
   }, [view, selectedDate, selectedTeamId]);
 
   const recordSummary = useMemo(() => {

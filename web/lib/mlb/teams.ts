@@ -41,3 +41,8 @@ export const MLB_TEAMS: MLBTeam[] = [
 export function getTeamById(teamId: number): MLBTeam | undefined {
   return MLB_TEAMS.find((team) => team.id === teamId);
 }
+
+export function getTeamByAbbrev(abbrev: string): MLBTeam | undefined {
+  const normalized = abbrev.trim().toUpperCase();
+  return MLB_TEAMS.find((team) => team.abbrev.toUpperCase() === normalized);
+}

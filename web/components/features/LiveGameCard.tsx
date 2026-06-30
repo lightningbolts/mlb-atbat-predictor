@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { CompactLineScore } from "@/components/features/CompactLineScore";
 import { PitcherDuel } from "@/components/features/PitcherDuel";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 import { useGameCardSnapshot } from "@/hooks/useGameCardSnapshot";
 import { cn } from "@/lib/utils";
 import { LIVE_GAME_STATUSES, type SlateGame } from "@/types/mlb";
@@ -144,18 +145,24 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{game.awayTeam}</p>
-              <p className="text-[11px] text-muted">{game.awayAbbrev}</p>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <TeamLogo abbrev={game.awayAbbrev} size={32} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">{game.awayTeam}</p>
+                <p className="text-[11px] text-muted">{game.awayAbbrev}</p>
+              </div>
             </div>
             <span className="font-mono text-2xl font-bold tabular-nums text-foreground">
               {awayRuns ?? "—"}
             </span>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{game.homeTeam}</p>
-              <p className="text-[11px] text-muted">{game.homeAbbrev}</p>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <TeamLogo abbrev={game.homeAbbrev} size={32} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">{game.homeTeam}</p>
+                <p className="text-[11px] text-muted">{game.homeAbbrev}</p>
+              </div>
             </div>
             <span className="font-mono text-2xl font-bold tabular-nums text-foreground">
               {homeRuns ?? "—"}

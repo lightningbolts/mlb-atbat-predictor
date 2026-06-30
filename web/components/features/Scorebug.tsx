@@ -1,6 +1,7 @@
 "use client";
 
 import { BaseDiamond } from "@/components/features/BaseDiamond";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 import { isGameOver, isBetweenHalfInnings } from "@/lib/mlb/gameOver";
 import type { DueUpBatter } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
@@ -60,16 +61,12 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
     >
       <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-contain md:overflow-visible">
       <div className="flex min-w-[52px] flex-col items-center justify-center border-r border-border px-2 max-md:min-w-[52px] md:min-w-[72px] md:px-3">
-        <span className="text-[10px] font-semibold tracking-wide text-scorebug-muted">
-          {awayAbbrev}
-        </span>
+        <TeamLogo abbrev={awayAbbrev} size={22} className="mb-0.5" />
         <span className="font-mono text-2xl font-bold leading-none tabular-nums">{awayRuns}</span>
       </div>
 
       <div className="flex min-w-[52px] flex-col items-center justify-center border-r border-border px-2 max-md:min-w-[52px] md:min-w-[72px] md:px-3">
-        <span className="text-[10px] font-semibold tracking-wide text-scorebug-muted">
-          {homeAbbrev}
-        </span>
+        <TeamLogo abbrev={homeAbbrev} size={22} className="mb-0.5" />
         <span className="font-mono text-2xl font-bold leading-none tabular-nums">{homeRuns}</span>
       </div>
 

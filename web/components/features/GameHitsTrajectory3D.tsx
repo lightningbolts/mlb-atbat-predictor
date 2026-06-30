@@ -76,13 +76,19 @@ function Scene({
   hits,
   venueId,
   selectedAtBatIndex,
+  getHitKey,
+  selectedHitKey,
 }: {
   hits: GameHit[];
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
+  getHitKey?: (hit: GameHit) => string | number;
+  selectedHitKey?: string | number | null;
 }) {
   const { canvasBg } = useFieldChartColors();
   const bounds = useMemo(() => combinedBounds(hits, venueId), [hits, venueId]);
+  const resolveKey = getHitKey ?? ((hit: GameHit) => hit.atBatIndex);
+  const activeKey = selectedHitKey ?? selectedAtBatIndex;
 
   return (
     <>
@@ -93,12 +99,10 @@ function Scene({
       <TrajectoryParkField venueId={venueId} />
       {hits.map((gameHit) => (
         <TrajectoryPath
-          key={gameHit.atBatIndex}
+          key={resolveKey(gameHit)}
           gameHit={gameHit}
           venueId={venueId}
-          selected={
-            selectedAtBatIndex == null || selectedAtBatIndex === gameHit.atBatIndex
-          }
+          selected={activeKey == null || activeKey === resolveKey(gameHit)}
         />
       ))}
       <TrajectoryOrbitControls
@@ -114,6 +118,8 @@ interface GameHitsTrajectory3DProps {
   hits: GameHit[];
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
+  getHitKey?: (hit: GameHit) => string | number;
+  selectedHitKey?: string | number | null;
   className?: string;
 }
 
@@ -121,6 +127,8 @@ export function GameHitsTrajectory3D({
   hits,
   venueId,
   selectedAtBatIndex = null,
+  getHitKey,
+  selectedHitKey = null,
   className,
 }: GameHitsTrajectory3DProps) {
   const cameraPosition = useMemo((): Vec3 => {
@@ -157,6 +165,8 @@ export function GameHitsTrajectory3D({
             hits={hits}
             venueId={venueId}
             selectedAtBatIndex={selectedAtBatIndex}
+            getHitKey={getHitKey}
+            selectedHitKey={selectedHitKey}
           />
         </Canvas>
       </div>

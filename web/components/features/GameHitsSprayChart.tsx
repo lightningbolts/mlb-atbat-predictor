@@ -18,6 +18,8 @@ interface GameHitsSprayChartProps {
   hits: GameHit[];
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
+  getHitKey?: (hit: GameHit) => string | number;
+  selectedHitKey?: string | number | null;
   onSelectHit?: (hit: GameHit) => void;
   className?: string;
 }
@@ -51,12 +53,16 @@ export function GameHitsSprayChart({
   hits,
   venueId,
   selectedAtBatIndex = null,
+  getHitKey,
+  selectedHitKey = null,
   onSelectHit,
   className,
 }: GameHitsSprayChartProps) {
   const park = getBallparkByVenueId(venueId);
   const transform = park?.transform ?? GENERIC_TRANSFORM;
   const home = mapHitToSvg(125, 200, transform);
+  const resolveKey = getHitKey ?? ((hit: GameHit) => hit.atBatIndex);
+  const activeKey = selectedHitKey ?? selectedAtBatIndex;
 
   return (
     <div className={cn("w-full", className)}>
@@ -67,12 +73,13 @@ export function GameHitsSprayChart({
         <FieldBackground venueId={venueId} />
         {hits.map((gameHit) => {
           const { x, y } = mapHitToSvg(gameHit.hit.coordX, gameHit.hit.coordY, transform);
-          const isSelected = selectedAtBatIndex === gameHit.atBatIndex;
-          const dimmed = selectedAtBatIndex != null && !isSelected;
+          const hitKey = resolveKey(gameHit);
+          const isSelected = activeKey === hitKey;
+          const dimmed = activeKey != null && !isSelected;
 
           return (
             <g
-              key={gameHit.atBatIndex}
+              key={hitKey}
               opacity={dimmed ? 0.35 : 1}
               className={onSelectHit ? "cursor-pointer" : undefined}
               onClick={onSelectHit ? () => onSelectHit(gameHit) : undefined}
