@@ -80,55 +80,74 @@ function CoffeeIcon() {
   );
 }
 
+function NavLinks({ pathname }: { pathname: string }) {
+  return (
+    <>
+      {NAV_ITEMS.map((item) => {
+        const isActive =
+          item.href === "/"
+            ? pathname === "/" || pathname.startsWith("/live/")
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "shrink-0 rounded-md px-2.5 py-1.5 text-xs transition-colors sm:px-3 sm:text-sm",
+              isActive
+                ? "bg-surface-elevated text-foreground"
+                : "text-secondary hover:bg-hover hover:text-foreground",
+            )}
+          >
+            <span className="sm:hidden">{item.shortLabel}</span>
+            <span className="hidden sm:inline">{item.label}</span>
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
 export function AppNav() {
   const pathname = usePathname();
 
   return (
-    <header className="shrink-0 border-b border-border bg-surface px-3 py-2 sm:px-4 sm:py-3">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
-        <div className="flex min-w-0 items-center justify-between gap-2 lg:flex-1 lg:justify-start lg:gap-6">
-          <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
-            <span className="sm:hidden">MLB Predictor</span>
-            <span className="hidden sm:inline">MLB At-Bat Predictor</span>
-          </Link>
-
-          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
+    <header className="shrink-0 border-b border-border bg-surface py-2 sm:py-3">
+      <div className="mx-auto w-full max-w-6xl px-4">
+        {/* Desktop: title + tabs left, actions right */}
+        <div className="hidden items-center justify-between gap-4 sm:flex">
+          <div className="flex min-w-0 items-center gap-4 lg:gap-6">
+            <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
+              MLB At-Bat Predictor
+            </Link>
+            <nav className="flex items-center gap-0.5 lg:gap-1" aria-label="Main">
+              <NavLinks pathname={pathname} />
+            </nav>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <DonateButton />
             <ThemeToggle />
           </div>
         </div>
 
-        <nav
-          className="-mx-1 flex items-center gap-0.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] lg:mx-0 lg:flex-1 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden"
-          aria-label="Main"
-        >
-          {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.href === "/"
-                ? pathname === "/" || pathname.startsWith("/live/")
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "shrink-0 rounded-md px-2.5 py-1.5 text-xs transition-colors sm:px-3 sm:text-sm",
-                  isActive
-                    ? "bg-surface-elevated text-foreground"
-                    : "text-secondary hover:bg-hover hover:text-foreground",
-                )}
-              >
-                <span className="sm:hidden">{item.shortLabel}</span>
-                <span className="hidden sm:inline">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="hidden shrink-0 items-center gap-2 lg:flex">
-          <DonateButton />
-          <ThemeToggle />
+        {/* Mobile: title + actions, then scrollable tabs */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          <div className="flex items-center justify-between gap-2">
+            <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
+              MLB Predictor
+            </Link>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <DonateButton />
+              <ThemeToggle />
+            </div>
+          </div>
+          <nav
+            className="-mx-1 flex items-center gap-0.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            aria-label="Main"
+          >
+            <NavLinks pathname={pathname} />
+          </nav>
         </div>
       </div>
     </header>
