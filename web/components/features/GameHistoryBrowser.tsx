@@ -233,7 +233,7 @@ export function GameHistoryBrowser({
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
 
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
         <div className="mb-6">
           <h1 className="text-xl font-medium text-foreground">Season History</h1>
           <p className="mt-1 text-sm text-muted">

@@ -95,7 +95,10 @@ export function BallparkHitsBrowser() {
                       venueId={park.venueId}
                       getHitKey={(hit) => (hit as unknown as SprayPreviewHit).hitKey}
                       showLines={false}
-                      ballRadius={1.1}
+                      ballRadius={
+                        park.stats.total > 500 ? 0.6 : park.stats.total > 300 ? 0.75 : 0.9
+                      }
+                      hideVenueLabel
                       className="opacity-90"
                     />
                   </div>

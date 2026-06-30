@@ -37,7 +37,7 @@ export function TeamNerdCardView({ teamId }: TeamNerdCardViewProps) {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
 
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
         <Link href="/nerd" className="text-xs text-muted transition-colors hover:text-foreground">
           ← Nerd Standings
         </Link>

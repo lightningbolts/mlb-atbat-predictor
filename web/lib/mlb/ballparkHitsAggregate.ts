@@ -44,18 +44,6 @@ function toVenueHit(
   };
 }
 
-const PREVIEW_HIT_LIMIT = 150;
-
-function samplePreviewHits(hits: VenueHit[], limit: number): VenueHit[] {
-  if (hits.length <= limit) return hits;
-  const step = hits.length / limit;
-  const sampled: VenueHit[] = [];
-  for (let i = 0; i < limit; i += 1) {
-    sampled.push(hits[Math.floor(i * step)]!);
-  }
-  return sampled;
-}
-
 function toSprayPreview(hit: VenueHit): SprayPreviewHit {
   return {
     atBatIndex: hit.atBatIndex,
@@ -109,7 +97,7 @@ export function buildBallparkHitsAggregate(
       stadiumSlug: park.stadiumSlug,
       stats: computeGameHitStats(hits),
       gameCount: gamesByVenue.get(park.venueId)?.size ?? 0,
-      previewHits: samplePreviewHits(hits, PREVIEW_HIT_LIMIT).map(toSprayPreview),
+      previewHits: hits.map(toSprayPreview),
     };
   });
 

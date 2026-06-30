@@ -27,6 +27,7 @@ interface GameHitsSprayChartProps {
   /** When set, fixes line/dot mode and hides the toggle unless `showLineToggle` is true. */
   showLines?: boolean;
   ballRadius?: number;
+  hideVenueLabel?: boolean;
   className?: string;
 }
 
@@ -108,6 +109,7 @@ export function GameHitsSprayChart({
   showLineToggle,
   showLines: showLinesProp,
   ballRadius,
+  hideVenueLabel,
   className,
 }: GameHitsSprayChartProps) {
   const [showLinesState, setShowLinesState] = useState(true);
@@ -171,7 +173,7 @@ export function GameHitsSprayChart({
           );
         })}
       </svg>
-      {park && (
+      {park && !hideVenueLabel && (
         <p className="mt-1.5 text-center text-[11px] text-subtle">{park.venueName}</p>
       )}
     </div>
