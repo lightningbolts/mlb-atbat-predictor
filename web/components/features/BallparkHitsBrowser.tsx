@@ -94,6 +94,8 @@ export function BallparkHitsBrowser() {
                       hits={park.previewHits as unknown as GameHit[]}
                       venueId={park.venueId}
                       getHitKey={(hit) => (hit as unknown as SprayPreviewHit).hitKey}
+                      showLines={false}
+                      ballRadius={1.1}
                       className="opacity-90"
                     />
                   </div>

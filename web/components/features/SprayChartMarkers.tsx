@@ -27,10 +27,11 @@ export function SprayTrajectory({
   lineWidth,
   ballRadius = 2.4,
 }: SprayTrajectoryProps) {
-  const strokeW = lineWidth ?? (selected ? 0.85 : 0.65);
-  const haloW = strokeW + 0.55;
-  const r = selected ? Math.max(ballRadius, 3.2) : ballRadius;
-  const haloR = r + 0.85;
+  const compact = ballRadius < 2;
+  const strokeW = lineWidth ?? (selected ? (compact ? 0.55 : 0.85) : compact ? 0.4 : 0.65);
+  const haloW = strokeW + (compact ? 0.35 : 0.55);
+  const r = selected ? ballRadius * (compact ? 1.35 : 1.33) : ballRadius;
+  const haloR = r + (compact ? 0.45 : 0.85);
 
   return (
     <g>

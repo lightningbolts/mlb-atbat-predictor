@@ -213,6 +213,8 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                       const key = (hit as VenueHit).hitKey;
                       setSelectedHitKey((current) => (current === key ? null : key));
                     }}
+                    showLines={false}
+                    ballRadius={1.2}
                     className="mx-auto w-full max-w-[min(100%,480px)]"
                   />
                 </section>
