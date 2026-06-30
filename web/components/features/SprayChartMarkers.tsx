@@ -10,6 +10,7 @@ interface SprayTrajectoryProps {
   y: number;
   color: string;
   selected?: boolean;
+  showLines?: boolean;
   lineWidth?: number;
   ballRadius?: number;
 }
@@ -22,6 +23,7 @@ export function SprayTrajectory({
   y,
   color,
   selected = false,
+  showLines = true,
   lineWidth,
   ballRadius = 2.4,
 }: SprayTrajectoryProps) {
@@ -32,26 +34,30 @@ export function SprayTrajectory({
 
   return (
     <g>
-      <line
-        x1={homeX}
-        y1={homeY}
-        x2={x}
-        y2={y}
-        stroke={SPRAY_HIT_SHADOW}
-        strokeWidth={haloW}
-        strokeLinecap="round"
-        opacity={0.6}
-      />
-      <line
-        x1={homeX}
-        y1={homeY}
-        x2={x}
-        y2={y}
-        stroke={color}
-        strokeWidth={strokeW}
-        strokeLinecap="round"
-        opacity={selected ? 1 : 0.95}
-      />
+      {showLines && (
+        <>
+          <line
+            x1={homeX}
+            y1={homeY}
+            x2={x}
+            y2={y}
+            stroke={SPRAY_HIT_SHADOW}
+            strokeWidth={haloW}
+            strokeLinecap="round"
+            opacity={0.6}
+          />
+          <line
+            x1={homeX}
+            y1={homeY}
+            x2={x}
+            y2={y}
+            stroke={color}
+            strokeWidth={strokeW}
+            strokeLinecap="round"
+            opacity={selected ? 1 : 0.95}
+          />
+        </>
+      )}
       <circle cx={x} cy={y} r={haloR} fill={SPRAY_HIT_SHADOW} opacity={0.55} />
       <circle
         cx={x}
